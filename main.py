@@ -328,8 +328,10 @@ def generar_grafico_entrada(df, decision, soporte, resistencia, slope, intercept
         # TEXTO DE ENTRADA
         # ======================================================
 
-        texto_entrada = (
-            f"{decision.upper()}
+        texto entrada= (
+    f"{decision.upper()}\n"
+    f"Precio: {precio}\n"
+)
 "
             f"Precio: {entrada_precio:.2f}
 "
