@@ -215,6 +215,164 @@ def motor_v90(df):
     return None, soporte, resistencia, razones
 
 # ======================================================
+# GRÁFICO VELAS JAPONESAS + SOPORTE/RESISTENCIA + TENDENCIA
+# ======================================================
+
+def generar_grafico_entrada(df, decision, soporte, resistencia, slope, intercept, razones):
+    """
+    Genera gráfico de velas japonesas con:
+    - Soporte (línea horizontal)
+    - Resistencia (línea horizontal)
+    - Línea de tendencia inclinada (según slope)
+    - EMA20 (opcional)
+    - Marcador exacto en la vela de entrada
+    """
+
+    try:
+        df_plot = df.copy().tail(GRAFICO_VELAS_LIMIT)
+
+        if df_plot.empty:
+            return None
+
+        # ======================================================
+        # DATOS
+        # ======================================================
+
+        times = df_plot.index
+        opens = df_plot['open'].values
+        highs = df_plot['high'].values
+        lows = df_plot['low'].values
+        closes = df_plot['close'].values
+
+        x = np.arange(len(df_plot))
+
+        # ======================================================
+        # CREAR FIGURA
+        # ======================================================
+
+        fig, ax = plt.subplots(figsize=(14, 7))
+
+        # ======================================================
+        # VELAS JAPONESAS (MATPLOTLIB PURO)
+        # ======================================================
+
+        for i in range(len(df_plot)):
+            color = 'green' if closes[i] >= opens[i] else 'red'
+
+            # Mecha
+            ax.vlines(x[i], lows[i], highs[i], color=color, linewidth=1)
+
+            # Cuerpo
+            cuerpo_y = min(opens[i], closes[i])
+            cuerpo_h = abs(closes[i] - opens[i])
+
+            if cuerpo_h == 0:
+                cuerpo_h = 0.0001
+
+            rect = plt.Rectangle(
+                (x[i] - 0.3, cuerpo_y),
+                0.6,
+                cuerpo_h,
+                color=color,
+                alpha=0.9
+            )
+            ax.add_patch(rect)
+
+        # ======================================================
+        # SOPORTE / RESISTENCIA (LÍNEAS HORIZONTALES)
+        # ======================================================
+
+        ax.axhline(soporte, color='cyan', linestyle='--', linewidth=2, label=f"Soporte {soporte:.2f}")
+        ax.axhline(resistencia, color='magenta', linestyle='--', linewidth=2, label=f"Resistencia {resistencia:.2f}")
+
+        # ======================================================
+        # EMA20
+        # ======================================================
+
+        if MOSTRAR_EMA20 and 'ema20' in df_plot.columns:
+            ax.plot(x, df_plot['ema20'].values, color='yellow', linewidth=2, label='EMA20')
+
+        # ======================================================
+        # LÍNEA DE TENDENCIA INCLINADA (REGRESIÓN LINEAL)
+        # ======================================================
+
+        # Creamos tendencia solo sobre el rango graficado
+        tendencia_y = intercept + slope * np.arange(len(df))
+
+        # Ajustar para que coincida con el rango mostrado
+        # intercept original es para el dataset completo, así que recalculamos sobre df_plot
+        y_plot = df_plot['close'].values
+        x_plot = np.arange(len(y_plot))
+        slope_plot, intercept_plot, r_plot, _, _ = linregress(x_plot, y_plot)
+
+        tendencia_linea = intercept_plot + slope_plot * x_plot
+
+        ax.plot(x_plot, tendencia_linea, color='white', linewidth=2, linestyle='-', label=f"Tendencia slope {slope_plot:.4f}")
+
+        # ======================================================
+        # MARCAR VELA DE ENTRADA (ÚLTIMA VELA CERRADA)
+        # ======================================================
+
+        entrada_x = len(df_plot) - 1
+        entrada_precio = closes[-1]
+        entrada_time = times[-1]
+
+        if decision == 'Buy':
+            ax.scatter(entrada_x, entrada_precio, s=200, marker='^', color='lime', edgecolors='black', linewidths=1.5, label='Entrada BUY')
+            ax.axvline(entrada_x, color='lime', linestyle=':', linewidth=2)
+        elif decision == 'Sell':
+            ax.scatter(entrada_x, entrada_precio, s=200, marker='v', color='red', edgecolors='black', linewidths=1.5, label='Entrada SELL')
+            ax.axvline(entrada_x, color='red', linestyle=':', linewidth=2)
+
+        # ======================================================
+        # TEXTO DE ENTRADA
+        # ======================================================
+
+        texto_entrada = (
+            f"{decision.upper()}
+"
+            f"Precio: {entrada_precio:.2f}
+"
+            f"Hora: {entrada_time.strftime('%Y-%m-%d %H:%M:%S UTC')}
+"
+            f"Razones: {', '.join(razones)}"
+        )
+
+        ax.text(
+            0.02,
+            0.98,
+            texto_entrada,
+            transform=ax.transAxes,
+            fontsize=10,
+            verticalalignment='top',
+            bbox=dict(facecolor='black', alpha=0.6)
+        )
+
+        # ======================================================
+        # FORMATO
+        # ======================================================
+
+        ax.set_title(f"BTCUSDT - Velas Japonesas ({INTERVAL}m) - Entrada {decision}")
+        ax.set_xlabel("Velas")
+        ax.set_ylabel("Precio")
+
+        ax.grid(True, alpha=0.2)
+
+        # Etiquetas de tiempo (cada 10 velas)
+        step = max(1, int(len(df_plot) / 10))
+        ax.set_xticks(x[::step])
+        ax.set_xticklabels([t.strftime('%H:%M') for t in times[::step]], rotation=45)
+
+        ax.legend(loc='lower left')
+
+        plt.tight_layout()
+        return fig
+
+    except Exception as e:
+        print(f"🚨 ERROR GRAFICO: {e}")
+        return None
+
+# ======================================================
 # LOG
 # ======================================================
 
@@ -285,9 +443,29 @@ def run_bot():
                     f"💰 Precio: {precio:.2f}
 "
                     f"🧠 {', '.join(razones)}"
+                )}"
                 )
 
                 telegram_mensaje(mensaje)
+
+                # ======================================================
+                # GENERAR Y ENVIAR GRÁFICO A TELEGRAM AL ENTRAR
+                # ======================================================
+
+                fig = generar_grafico_entrada(
+                    df=df,
+                    decision=decision,
+                    soporte=soporte,
+                    resistencia=resistencia,
+                    slope=slope,
+                    intercept=intercept,
+                    razones=razones
+                )
+
+                if fig:
+                    telegram_grafico(fig)
+                    plt.close(fig)
+
                 trades_hoy += 1
 
             time.sleep(SLEEP_SECONDS)
