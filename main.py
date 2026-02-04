@@ -1,4 +1,3 @@
-
 # BOT TRADING V90.2 BYBIT REAL – PRODUCCIÓN (SIN PROXY)
 # ======================================================
 # ⚠️ KEYS INCLUIDAS TAL CUAL (SEGÚN PEDIDO)
@@ -19,6 +18,15 @@ from scipy.stats import linregress
 from datetime import datetime, timezone
 
 plt.rcParams['figure.figsize'] = (12, 6)
+
+# ======================================================
+# CONFIGURACIÓN GRÁFICOS
+# ======================================================
+
+GRAFICO_VELAS_LIMIT = 120  # cantidad de velas para graficar
+MOSTRAR_EMA20 = True
+MOSTRAR_ATR = False
+
 
 # ======================================================
 # CONFIGURACIÓN GENERAL
@@ -272,8 +280,10 @@ def run_bot():
                 precio = df['close'].iloc[-1]
 
                 mensaje = (
-                    f"📌 ENTRADA PAPER {decision}\n"
-                    f"💰 Precio: {precio:.2f}\n"
+                    f"📌 ENTRADA PAPER {decision}
+"
+                    f"💰 Precio: {precio:.2f}
+"
                     f"🧠 {', '.join(razones)}"
                 )
 
