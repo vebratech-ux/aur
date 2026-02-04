@@ -7,14 +7,18 @@
 # ✔ Entradas, salidas, razones y PnL
 # ==================================================================================
 
+import os
+import time
+import io
+import hmac
+import hashlib
+import requests
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import requests
-import io
-import time
+from groq import Groq
 from scipy.stats import linregress
-from datetime import datetime
+from datetime import datetime, timezone
 
 plt.rcParams['figure.figsize'] = (14, 7)
 
