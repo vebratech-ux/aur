@@ -329,12 +329,9 @@ def generar_grafico_entrada(df, decision, soporte, resistencia, slope, intercept
         # ======================================================
 
         texto_entrada = (
-            f"{decision.upper()}
-"
-            f"Precio: {entrada_precio:.2f}
-"
-            f"Hora: {entrada_time.strftime('%Y-%m-%d %H:%M:%S UTC')}
-"
+            f"{decision.upper()}\n"
+            f"Precio: {entrada_precio:.2f}\n"
+            f"Hora: {entrada_time.strftime('%Y-%m-%d %H:%M:%S UTC')}\n"
             f"Razones: {', '.join(razones)}"
         )
 
@@ -438,12 +435,9 @@ def run_bot():
                 precio = df['close'].iloc[-1]
 
                 mensaje = (
-                    f"📌 ENTRADA PAPER {decision}
-"
-                    f"💰 Precio: {precio:.2f}
-"
+                    f"📌 ENTRADA PAPER {decision}\n"
+                    f"💰 Precio: {precio:.2f}\n"
                     f"🧠 {', '.join(razones)}"
-                )}"
                 )
 
                 telegram_mensaje(mensaje)
