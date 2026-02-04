@@ -135,7 +135,8 @@ def obtener_velas(limit=300):
         'open','high','low','close','volume'
     ]].astype(float)
 
-    df['time'] = pd.to_datetime(df['time'], unit='ms')
+    df['time'] = pd.to_datetime(df['time'].astype(np.int64), unit='ms', utc=True)
+
     df.set_index('time', inplace=True)
     return df
 
