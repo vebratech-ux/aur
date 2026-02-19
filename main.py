@@ -29,6 +29,7 @@ MOSTRAR_ATR = False
 
 
 # ======================================================
+# ======================================================
 # CONFIGURACIÓN GENERAL
 # ======================================================
 
@@ -38,6 +39,30 @@ RISK_PER_TRADE = 0.0025   # 0.25%
 MAX_TRADES_DAY = 3
 LEVERAGE = 1
 SLEEP_SECONDS = 60
+
+# ======================================================
+# PAPER TRADING (SIMULACIÓN)
+# ======================================================
+
+PAPER_BALANCE_INICIAL = 100.0
+PAPER_BALANCE = PAPER_BALANCE_INICIAL
+PAPER_PNL_GLOBAL = 0.0
+PAPER_TRADES = []
+PAPER_POSICION_ACTIVA = None
+PAPER_PRECIO_ENTRADA = None
+PAPER_DECISION_ACTIVA = None
+PAPER_TIME_ENTRADA = None
+PAPER_SIZE_USD = 0.0
+PAPER_SIZE_BTC = 0.0
+PAPER_SL = None
+PAPER_TP = None
+PAPER_ULTIMO_RESULTADO = None
+PAPER_ULTIMO_PNL = 0.0
+PAPER_WIN = 0
+PAPER_LOSS = 0
+PAPER_TRADES_TOTALES = 0
+PAPER_MAX_DRAWDOWN = 0.0
+PAPER_BALANCE_MAX = PAPER_BALANCE_INICIAL
 
 # ======================================================
 # CREDENCIALES (SIN MODIFICAR)
@@ -448,7 +473,86 @@ Devuelve:
         return f"Error Groq: {e}"
 
 # ======================================================
+# GRÁFICO DE ENTRADA (VELAS + SOPORTE/RESISTENCIA + TENDENCIA)
+# ======================================================
+
+def generar_grafico_entrada(df, decision, soporte, resistencia, slope, intercept, razones):
+    try:
+        df_plot = df.copy().tail(120)
+
+        fig, ax = plt.subplots(figsize=(14, 7))
+
+        # Velas japonesas manuales
+        for i, (idx, row) in enumerate(df_plot.iterrows()):
+            o = row['open']
+            h = row['high']
+            l = row['low']
+            c = row['close']
+
+            # mecha
+            ax.plot([i, i], [l, h], color='black', linewidth=1)
+
+            # cuerpo
+            if c >= o:
+                ax.plot([i, i], [o, c], color='green', linewidth=6)
+            else:
+                ax.plot([i, i], [o, c], color='red', linewidth=6)
+
+        # soporte y resistencia horizontales
+        ax.axhline(soporte, color='blue', linestyle='--', linewidth=2, label='Soporte')
+        ax.axhline(resistencia, color='purple', linestyle='--', linewidth=2, label='Resistencia')
+
+        # tendencia inclinada basada en slope/intercept
+        y_trend = intercept + slope * np.arange(len(df_plot))
+        ax.plot(np.arange(len(df_plot)), y_trend, color='orange', linewidth=2, label='Tendencia')
+
+        # marcar vela de entrada (última)
+        entrada_index = len(df_plot) - 1
+        precio_entrada = df_plot['close'].iloc[-1]
+
+        ax.axvline(entrada_index, color='gold', linestyle='-', linewidth=2, label='Entrada')
+        ax.scatter([entrada_index], [precio_entrada], color='gold', s=150, marker='o')
+
+        # Texto de entrada
+        texto_entrada = (
+            f"{decision.upper()}
+"
+            f"Precio: {precio_entrada:.2f}
+"
+            f"Balance: {PAPER_BALANCE:.2f} USD
+"
+            f"PnL Global: {PAPER_PNL_GLOBAL:.4f} USD
+"
+            f"Razones: {', '.join(razones)}"
+        )
+
+        ax.text(
+            0.02,
+            0.98,
+            texto_entrada,
+            transform=ax.transAxes,
+            fontsize=11,
+            verticalalignment='top',
+            bbox=dict(boxstyle='round', facecolor='white', alpha=0.85)
+        )
+
+        ax.set_title(f"{SYMBOL} - Entrada PAPER {decision}")
+        ax.set_xlabel("Velas")
+        ax.set_ylabel("Precio")
+        ax.grid(True)
+        ax.legend()
+
+        return fig
+
+    except Exception as e:
+        print(f"🚨 ERROR GRÁFICO: {e}")
+        return None
+
+# ======================================================
 # LOOP PRINCIPAL
+# ======================================================
+
+
 # ======================================================
 
 def run_bot():
@@ -467,10 +571,40 @@ def run_bot():
 
             if decision and trades_hoy < MAX_TRADES_DAY:
                 precio = df['close'].iloc[-1]
+                atr_actual = df['atr'].iloc[-1]
+                tiempo_actual = df.index[-1]
+
+                # ======================================================
+                # ABRIR POSICIÓN PAPER
+                # ======================================================
+
+                apertura = paper_abrir_posicion(
+                    decision=decision,
+                    precio=precio,
+                    atr=atr_actual,
+                    soporte=soporte,
+                    resistencia=resistencia,
+                    razones=razones,
+                    tiempo=tiempo_actual
+                )
+
+                pnl_flotante = paper_calcular_pnl(precio)
 
                 mensaje = (
-                    f"📌 ENTRADA PAPER {decision}\n"
-                    f"💰 Precio: {precio:.2f}\n"
+                    f"📌 ENTRADA PAPER {decision}
+"
+                    f"💰 Precio: {precio:.2f}
+"
+                    f"📍 SL: {PAPER_SL:.2f} | TP: {PAPER_TP:.2f}
+"
+                    f"📦 Size USD: {PAPER_SIZE_USD:.2f} | Size BTC: {PAPER_SIZE_BTC:.6f}
+"
+                    f"💵 Balance: {PAPER_BALANCE:.2f} USD
+"
+                    f"📈 PnL flotante: {pnl_flotante:.4f} USD
+"
+                    f"📊 PnL Global: {PAPER_PNL_GLOBAL:.4f} USD
+"
                     f"🧠 {', '.join(razones)}"
                 )
 
@@ -495,6 +629,35 @@ def run_bot():
                     plt.close(fig)
 
                 trades_hoy += 1
+
+            # ======================================================
+            # REVISAR STOP LOSS / TAKE PROFIT PAPER
+            # ======================================================
+
+            if PAPER_POSICION_ACTIVA is not None:
+                precio_actual = df['close'].iloc[-1]
+                cierre = paper_revisar_sl_tp(precio_actual)
+
+                if cierre:
+                    mensaje_cierre = (
+                        f"📌 CIERRE PAPER {cierre['decision']} ({cierre['motivo']})
+"
+                        f"📍 Entrada: {cierre['entrada']:.2f}
+"
+                        f"📍 Salida: {cierre['salida']:.2f}
+"
+                        f"💰 PnL Trade: {cierre['pnl']:.4f} USD
+"
+                        f"💵 Balance: {cierre['balance']:.2f} USD
+"
+                        f"📊 PnL Global: {PAPER_PNL_GLOBAL:.4f} USD
+"
+                        f"🏆 Wins: {PAPER_WIN} | ❌ Loss: {PAPER_LOSS}
+"
+                        f"📉 Max Drawdown: {PAPER_MAX_DRAWDOWN:.4f} USD"
+                    )
+
+                    telegram_mensaje(mensaje_cierre)
 
             time.sleep(SLEEP_SECONDS)
 
