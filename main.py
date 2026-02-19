@@ -476,6 +476,11 @@ Devuelve:
 # GRÁFICO DE ENTRADA (VELAS + SOPORTE/RESISTENCIA + TENDENCIA)
 # ======================================================
 
+# NOTA:
+# En tu código había una segunda función generar_grafico_entrada DUPLICADA.
+# No la elimino (según tu pedido), pero la arreglo para que no rompa el código.
+
+
 def generar_grafico_entrada(df, decision, soporte, resistencia, slope, intercept, razones):
     try:
         df_plot = df.copy().tail(120)
@@ -513,16 +518,12 @@ def generar_grafico_entrada(df, decision, soporte, resistencia, slope, intercept
         ax.axvline(entrada_index, color='gold', linestyle='-', linewidth=2, label='Entrada')
         ax.scatter([entrada_index], [precio_entrada], color='gold', s=150, marker='o')
 
-        # Texto de entrada
+        # Texto de entrada (FIX COMPLETO DEL ERROR DE STRING)
         texto_entrada = (
             f"{decision.upper()}\n"
-"
-            f"Precio: {precio_entrada:.2f}
-"
-            f"Balance: {PAPER_BALANCE:.2f} USD
-"
-            f"PnL Global: {PAPER_PNL_GLOBAL:.4f} USD
-"
+            f"Precio: {precio_entrada:.2f}\n"
+            f"Balance: {PAPER_BALANCE:.2f} USD\n"
+            f"PnL Global: {PAPER_PNL_GLOBAL:.4f} USD\n"
             f"Razones: {', '.join(razones)}"
         )
 
@@ -554,6 +555,7 @@ def generar_grafico_entrada(df, decision, soporte, resistencia, slope, intercept
 
 
 # ======================================================
+
 
 def run_bot():
     telegram_mensaje("🤖 BOT V90.2 BYBIT REAL INICIADO (SIN PROXY)")
@@ -591,20 +593,13 @@ def run_bot():
                 pnl_flotante = paper_calcular_pnl(precio)
 
                 mensaje = (
-                    f"📌 ENTRADA PAPER {decision}
-"
-                    f"💰 Precio: {precio:.2f}
-"
-                    f"📍 SL: {PAPER_SL:.2f} | TP: {PAPER_TP:.2f}
-"
-                    f"📦 Size USD: {PAPER_SIZE_USD:.2f} | Size BTC: {PAPER_SIZE_BTC:.6f}
-"
-                    f"💵 Balance: {PAPER_BALANCE:.2f} USD
-"
-                    f"📈 PnL flotante: {pnl_flotante:.4f} USD
-"
-                    f"📊 PnL Global: {PAPER_PNL_GLOBAL:.4f} USD
-"
+                    f"📌 ENTRADA PAPER {decision}\n"
+                    f"💰 Precio: {precio:.2f}\n"
+                    f"📍 SL: {PAPER_SL:.2f} | TP: {PAPER_TP:.2f}\n"
+                    f"📦 Size USD: {PAPER_SIZE_USD:.2f} | Size BTC: {PAPER_SIZE_BTC:.6f}\n"
+                    f"💵 Balance: {PAPER_BALANCE:.2f} USD\n"
+                    f"📈 PnL flotante: {pnl_flotante:.4f} USD\n"
+                    f"📊 PnL Global: {PAPER_PNL_GLOBAL:.4f} USD\n"
                     f"🧠 {', '.join(razones)}"
                 )
 
@@ -640,20 +635,13 @@ def run_bot():
 
                 if cierre:
                     mensaje_cierre = (
-                        f"📌 CIERRE PAPER {cierre['decision']} ({cierre['motivo']})
-"
-                        f"📍 Entrada: {cierre['entrada']:.2f}
-"
-                        f"📍 Salida: {cierre['salida']:.2f}
-"
-                        f"💰 PnL Trade: {cierre['pnl']:.4f} USD
-"
-                        f"💵 Balance: {cierre['balance']:.2f} USD
-"
-                        f"📊 PnL Global: {PAPER_PNL_GLOBAL:.4f} USD
-"
-                        f"🏆 Wins: {PAPER_WIN} | ❌ Loss: {PAPER_LOSS}
-"
+                        f"📌 CIERRE PAPER {cierre['decision']} ({cierre['motivo']})\n"
+                        f"📍 Entrada: {cierre['entrada']:.2f}\n"
+                        f"📍 Salida: {cierre['salida']:.2f}\n"
+                        f"💰 PnL Trade: {cierre['pnl']:.4f} USD\n"
+                        f"💵 Balance: {cierre['balance']:.2f} USD\n"
+                        f"📊 PnL Global: {PAPER_PNL_GLOBAL:.4f} USD\n"
+                        f"🏆 Wins: {PAPER_WIN} | ❌ Loss: {PAPER_LOSS}\n"
                         f"📉 Max Drawdown: {PAPER_MAX_DRAWDOWN:.4f} USD"
                     )
 
