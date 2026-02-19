@@ -119,6 +119,7 @@ def obtener_velas(limit=300):
         "interval": INTERVAL,
         "limit": limit
     }
+
     r = requests.get(
         url,
         params=params,
@@ -128,12 +129,45 @@ def obtener_velas(limit=300):
     if not r.text:
         raise Exception("Respuesta vacía de Bybit")
 
-    data_json = r.json()
+    try:
+        data_json = r.json()
+    except Exception:
+        raise Exception(f"Bybit devolvió respuesta no-JSON: {r.text}")
+
+    # ======================================================
+    # VALIDACIONES FUERTES (ANTI ERROR 'list')
+    # ======================================================
+
+    if not isinstance(data_json, dict):
+        raise Exception(f"Bybit devolvió JSON no dict: {type(data_json)} | {data_json}")
+
+    if "retCode" in data_json and data_json["retCode"] != 0:
+        raise Exception(
+            f"Bybit Error retCode={data_json.get('retCode')} "
+            f"retMsg={data_json.get('retMsg')} "
+            f"result={data_json.get('result')}"
+        )
 
     if "result" not in data_json:
-        raise Exception(f"Respuesta inválida Bybit: {data_json}")
+        raise Exception(f"Respuesta inválida Bybit (sin result): {data_json}")
 
-    data = data_json['result']['list'][::-1]
+    if not isinstance(data_json["result"], dict):
+        raise Exception(
+            f"Bybit devolvió result como {type(data_json['result'])} en vez de dict: {data_json['result']}"
+        )
+
+    if "list" not in data_json["result"]:
+        raise Exception(f"Bybit result sin 'list': {data_json['result']}")
+
+    if not isinstance(data_json["result"]["list"], list):
+        raise Exception(
+            f"Bybit devolvió result['list'] como {type(data_json['result']['list'])} en vez de list: {data_json['result']['list']}"
+        )
+
+    data = data_json["result"]["list"][::-1]
+
+    if len(data) == 0:
+        raise Exception(f"Bybit devolvió lista vacía de velas: {data_json}")
 
     df = pd.DataFrame(data, columns=[
         'time','open','high','low','close','volume','turnover'
