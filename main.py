@@ -548,6 +548,135 @@ def generar_grafico_entrada(df, decision, soporte, resistencia, slope, intercept
     except Exception as e:
         print(f"🚨 ERROR GRÁFICO: {e}")
         return None
+# ======================================================
+# MOTOR PAPER (EJECUCIÓN SIMULADA)
+# ======================================================
+
+def paper_abrir_posicion(decision, precio, atr, soporte, resistencia, razones, tiempo):
+    global PAPER_POSICION_ACTIVA
+    global PAPER_PRECIO_ENTRADA
+    global PAPER_SL
+    global PAPER_TP
+    global PAPER_SIZE_USD
+    global PAPER_SIZE_BTC
+    global PAPER_TIME_ENTRADA
+    global PAPER_DECISION_ACTIVA
+
+    if PAPER_POSICION_ACTIVA is not None:
+        return False
+
+    riesgo_usd = PAPER_BALANCE * RISK_PER_TRADE
+
+    if decision == "Buy":
+        sl = precio - atr
+        tp = precio + (atr * 2)
+    elif decision == "Sell":
+        sl = precio + atr
+        tp = precio - (atr * 2)
+    else:
+        return False
+
+    distancia_sl = abs(precio - sl)
+    if distancia_sl == 0:
+        return False
+
+    size_btc = riesgo_usd / distancia_sl
+    size_usd = size_btc * precio
+
+    PAPER_POSICION_ACTIVA = decision
+    PAPER_DECISION_ACTIVA = decision
+    PAPER_PRECIO_ENTRADA = precio
+    PAPER_SL = sl
+    PAPER_TP = tp
+    PAPER_SIZE_USD = size_usd
+    PAPER_SIZE_BTC = size_btc
+    PAPER_TIME_ENTRADA = tiempo
+
+    return True
+
+
+def paper_calcular_pnl(precio_actual):
+    if PAPER_POSICION_ACTIVA is None:
+        return 0.0
+
+    if PAPER_POSICION_ACTIVA == "Buy":
+        return (precio_actual - PAPER_PRECIO_ENTRADA) * PAPER_SIZE_BTC
+    elif PAPER_POSICION_ACTIVA == "Sell":
+        return (PAPER_PRECIO_ENTRADA - precio_actual) * PAPER_SIZE_BTC
+
+    return 0.0
+
+
+def paper_revisar_sl_tp(precio_actual):
+    global PAPER_POSICION_ACTIVA
+    global PAPER_BALANCE
+    global PAPER_PNL_GLOBAL
+    global PAPER_WIN
+    global PAPER_LOSS
+    global PAPER_TRADES_TOTALES
+    global PAPER_BALANCE_MAX
+    global PAPER_MAX_DRAWDOWN
+    global PAPER_ULTIMO_RESULTADO
+    global PAPER_ULTIMO_PNL
+
+    if PAPER_POSICION_ACTIVA is None:
+        return None
+
+    cerrar = False
+    motivo = None
+
+    if PAPER_POSICION_ACTIVA == "Buy":
+        if precio_actual <= PAPER_SL:
+            cerrar = True
+            motivo = "SL"
+        elif precio_actual >= PAPER_TP:
+            cerrar = True
+            motivo = "TP"
+
+    elif PAPER_POSICION_ACTIVA == "Sell":
+        if precio_actual >= PAPER_SL:
+            cerrar = True
+            motivo = "SL"
+        elif precio_actual <= PAPER_TP:
+            cerrar = True
+            motivo = "TP"
+
+    if not cerrar:
+        return None
+
+    pnl = paper_calcular_pnl(precio_actual)
+
+    PAPER_BALANCE += pnl
+    PAPER_PNL_GLOBAL += pnl
+    PAPER_TRADES_TOTALES += 1
+    PAPER_ULTIMO_PNL = pnl
+    PAPER_ULTIMO_RESULTADO = motivo
+
+    if pnl > 0:
+        PAPER_WIN += 1
+    else:
+        PAPER_LOSS += 1
+
+    if PAPER_BALANCE > PAPER_BALANCE_MAX:
+        PAPER_BALANCE_MAX = PAPER_BALANCE
+
+    drawdown = PAPER_BALANCE_MAX - PAPER_BALANCE
+    if drawdown > PAPER_MAX_DRAWDOWN:
+        PAPER_MAX_DRAWDOWN = drawdown
+
+    resultado = {
+        "decision": PAPER_DECISION_ACTIVA,
+        "entrada": PAPER_PRECIO_ENTRADA,
+        "salida": precio_actual,
+        "pnl": pnl,
+        "balance": PAPER_BALANCE,
+        "motivo": motivo
+    }
+
+    PAPER_POSICION_ACTIVA = None
+
+    return resultado
+
 
 # ======================================================
 # LOOP PRINCIPAL
