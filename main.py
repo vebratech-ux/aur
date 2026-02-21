@@ -511,6 +511,26 @@ def generar_grafico_entrada(df, decision, soporte, resistencia, slope, intercept
         y_trend = intercept + slope * np.arange(len(df_plot))
         ax.plot(np.arange(len(df_plot)), y_trend, color='orange', linewidth=2, label='Tendencia')
 
+        # ======================================================
+        # CANAL DE TENDENCIA DINÁMICO (SOPORTE Y RESISTENCIA INCLINADOS)
+        # ======================================================
+        x_vals = np.arange(len(df_plot))
+        precios = df_plot['close'].values
+
+        slope_local, intercept_local, _, _, _ = linregress(x_vals, precios)
+        linea_central = intercept_local + slope_local * x_vals
+
+        residuos = precios - linea_central
+        desviacion = np.std(residuos)
+        factor_canal = 1.5
+
+        canal_superior = linea_central + (desviacion * factor_canal)
+        canal_inferior = linea_central - (desviacion * factor_canal)
+
+        ax.plot(x_vals, canal_superior, linestyle='--', linewidth=2, color='red', label='Resistencia dinámica')
+        ax.plot(x_vals, canal_inferior, linestyle='--', linewidth=2, color='green', label='Soporte dinámico')
+
+
         # marcar vela de entrada (última)
         entrada_index = len(df_plot) - 1
         precio_entrada = df_plot['close'].iloc[-1]
