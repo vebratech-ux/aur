@@ -809,3 +809,207 @@ def run_bot():
 
 if __name__ == '__main__':
     run_bot()
+
+
+
+# ======================================================
+# SISTEMA SECUNDARIO INSTITUCIONAL (NO REEMPLAZA EL SISTEMA PRINCIPAL)
+# ======================================================
+# Funciones añadidas:
+# 1 BOS Externo (estructura mayor)
+# Pullback válido estructural
+# Gestión parcial real (50% TP1 / 50% TP2)
+# Estadísticas avanzadas internas
+# Log detallado enviado a Telegram (sin CSV)
+# ======================================================
+
+class InstitutionalStats:
+    def __init__(self):
+        self.total_trades = 0
+        self.wins = 0
+        self.losses = 0
+        self.partial_wins = 0
+        self.total_rr = 0.0
+        self.equity_curve = []
+        self.trade_log = []
+
+    def register_trade(self, result_rr, partial=False):
+        self.total_trades += 1
+        self.total_rr += result_rr
+
+        if partial:
+            self.partial_wins += 1
+        elif result_rr > 0:
+            self.wins += 1
+        else:
+            self.losses += 1
+
+        self.equity_curve.append(self.total_rr)
+
+    def winrate(self):
+        if self.total_trades == 0:
+            return 0
+        return (self.wins / self.total_trades) * 100
+
+    def avg_rr(self):
+        if self.total_trades == 0:
+            return 0
+        return self.total_rr / self.total_trades
+
+
+class ExternalBOSDetector:
+    def __init__(self, lookback=50):
+        self.lookback = lookback
+        self.last_swing_high = None
+        self.last_swing_low = None
+
+    def detect_swings(self, df):
+        highs = df['high'].values
+        lows = df['low'].values
+
+        swing_high = max(highs[-self.lookback:])
+        swing_low = min(lows[-self.lookback:])
+
+        self.last_swing_high = swing_high
+        self.last_swing_low = swing_low
+
+        return swing_high, swing_low
+
+    def is_bos_externo(self, df):
+        swing_high, swing_low = self.detect_swings(df)
+        last_close = df['close'].iloc[-1]
+
+        bos_alcista = last_close > swing_high
+        bos_bajista = last_close < swing_low
+
+        return bos_alcista, bos_bajista, swing_high, swing_low
+
+
+class PullbackValidator:
+    def __init__(self, tolerance=0.3):
+        self.tolerance = tolerance
+
+    def es_pullback_valido(self, df, nivel_estructura, direccion):
+        precio_actual = df['close'].iloc[-1]
+
+        if direccion == "long":
+            zona_pullback = nivel_estructura * (1 - self.tolerance / 100)
+            return precio_actual <= zona_pullback
+
+        if direccion == "short":
+            zona_pullback = nivel_estructura * (1 + self.tolerance / 100)
+            return precio_actual >= zona_pullback
+
+        return False
+
+
+class PartialTPManager:
+    def __init__(self):
+        self.tp1_hit = False
+        self.tp2_hit = False
+
+    def gestionar_tp_parcial(self, entry, tp1, tp2, price, side):
+        resultado = {
+            "cerrar_50": False,
+            "cerrar_total": False,
+            "evento": None
+        }
+
+        if side == "long":
+            if not self.tp1_hit and price >= tp1:
+                self.tp1_hit = True
+                resultado["cerrar_50"] = True
+                resultado["evento"] = "TP1 alcanzado - cierre 50%"
+            elif price >= tp2:
+                self.tp2_hit = True
+                resultado["cerrar_total"] = True
+                resultado["evento"] = "TP2 alcanzado - cierre total"
+
+        if side == "short":
+            if not self.tp1_hit and price <= tp1:
+                self.tp1_hit = True
+                resultado["cerrar_50"] = True
+                resultado["evento"] = "TP1 alcanzado - cierre 50%"
+            elif price <= tp2:
+                self.tp2_hit = True
+                resultado["cerrar_total"] = True
+                resultado["evento"] = "TP2 alcanzado - cierre total"
+
+        return resultado
+
+
+class InstitutionalLogger:
+    def __init__(self, telegram_send_func):
+        self.send_telegram = telegram_send_func
+
+    def log_operacion_completa(self, data):
+        mensaje = f"""
+📊 OPERACIÓN INSTITUCIONAL DETECTADA
+
+🧠 Sistema: Secundario (BOS Externo)
+📈 Dirección: {data.get('direccion')}
+💰 Entry: {data.get('entry')}
+🎯 TP1 (50%): {data.get('tp1')}
+🎯 TP2 (50%): {data.get('tp2')}
+🛑 SL: {data.get('sl')}
+
+📊 RR Esperado: {data.get('rr')}
+🏆 Winrate Global: {data.get('winrate'):.2f}%
+📉 RR Promedio: {data.get('avg_rr'):.2f}
+🔢 Total Trades: {data.get('total_trades')}
+"""
+        self.send_telegram(mensaje)
+
+
+# ======================================================
+# INTEGRADOR DEL SISTEMA SECUNDARIO (CAPA NO INTRUSIVA)
+# ======================================================
+
+class InstitutionalSecondarySystem:
+    def __init__(self, telegram_send_func):
+        self.bos_detector = ExternalBOSDetector()
+        self.pullback_validator = PullbackValidator()
+        self.tp_manager = PartialTPManager()
+        self.stats = InstitutionalStats()
+        self.logger = InstitutionalLogger(telegram_send_func)
+
+    def evaluar_confirmacion_institucional(self, df):
+        bos_alcista, bos_bajista, swing_high, swing_low = self.bos_detector.is_bos_externo(df)
+
+        confirmacion = {
+            "confirmado": False,
+            "direccion": None,
+            "nivel_estructura": None
+        }
+
+        if bos_alcista:
+            confirmacion["confirmado"] = True
+            confirmacion["direccion"] = "long"
+            confirmacion["nivel_estructura"] = swing_high
+
+        elif bos_bajista:
+            confirmacion["confirmado"] = True
+            confirmacion["direccion"] = "short"
+            confirmacion["nivel_estructura"] = swing_low
+
+        return confirmacion
+
+    def validar_pullback(self, df, direccion, nivel):
+        return self.pullback_validator.es_pullback_valido(df, nivel, direccion)
+
+    def gestionar_trade_vivo(self, entry, tp1, tp2, price, side):
+        return self.tp_manager.gestionar_tp_parcial(entry, tp1, tp2, price, side)
+
+    def registrar_resultado(self, rr, parcial=False):
+        self.stats.register_trade(rr, parcial)
+
+    def enviar_log_completo(self, trade_data):
+        trade_data["winrate"] = self.stats.winrate()
+        trade_data["avg_rr"] = self.stats.avg_rr()
+        trade_data["total_trades"] = self.stats.total_trades
+        self.logger.log_operacion_completa(trade_data)
+
+
+# ======================================================
+# FIN DEL MÓDULO INSTITUCIONAL SECUNDARIO
+# ======================================================
