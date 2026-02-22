@@ -1,149 +1,132 @@
-# BOT TRADING V90.2 BYBIT REAL – PRODUCCIÓN (SIN PROXY)
-# ======================================================
-# ⚠️ KEYS INCLUIDAS TAL CUAL (SEGÚN PEDIDO)
-# Diseñado para FUTUROS PERPETUOS BTCUSDT en Bybit
-# ======================================================
+BOT TRADING V90.2 BYBIT REAL – PRODUCCIÓN (SIN PROXY)
 
-import os
-import time
-import io
-import hmac
-import hashlib
-import requests
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-from groq import Groq
-from scipy.stats import linregress
-from datetime import datetime, timezone
+======================================================
 
-plt.rcParams['figure.figsize'] = (12, 6)
+⚠️ KEYS INCLUIDAS TAL CUAL (SEGÚN PEDIDO)
 
-# ======================================================
-# CONFIGURACIÓN GRÁFICOS
-# ======================================================
+Diseñado para FUTUROS PERPETUOS BTCUSDT en Bybit
 
-GRAFICO_VELAS_LIMIT = 120  # cantidad de velas para graficar
-MOSTRAR_EMA20 = True
-MOSTRAR_ATR = False
+======================================================
 
+import os import time import io import hmac import hashlib import
+requests import numpy as np import pandas as pd import matplotlib.pyplot
+as plt from groq import Groq from scipy.stats import linregress from
+datetime import datetime, timezone, timedelta
 
-# ======================================================
-# ======================================================
-# CONFIGURACIÓN GENERAL
-# ======================================================
+plt.rcParams[‘figure.figsize’] = (12, 6)
 
-SYMBOL = "BTCUSDT"
-INTERVAL = "1"  # 1 minuto
-RISK_PER_TRADE = 0.0025   # 0.25%
-MAX_TRADES_DAY = 3
-LEVERAGE = 1
-SLEEP_SECONDS = 60
+======================================================
 
-# ======================================================
-# PAPER TRADING (SIMULACIÓN)
-# ======================================================
+CONFIGURACIÓN GRÁFICOS
 
-PAPER_BALANCE_INICIAL = 100.0
-PAPER_BALANCE = PAPER_BALANCE_INICIAL
-PAPER_PNL_GLOBAL = 0.0
-PAPER_TRADES = []
-PAPER_POSICION_ACTIVA = None
-PAPER_PRECIO_ENTRADA = None
-PAPER_DECISION_ACTIVA = None
-PAPER_TIME_ENTRADA = None
-PAPER_SIZE_USD = 0.0
-PAPER_SIZE_BTC = 0.0
-PAPER_SL = None
-PAPER_TP = None
-PAPER_ULTIMO_RESULTADO = None
-PAPER_ULTIMO_PNL = 0.0
-PAPER_WIN = 0
-PAPER_LOSS = 0
-PAPER_TRADES_TOTALES = 0
-PAPER_MAX_DRAWDOWN = 0.0
-PAPER_BALANCE_MAX = PAPER_BALANCE_INICIAL
+======================================================
 
-# ======================================================
-# CREDENCIALES (SIN MODIFICAR)
-# ======================================================
+GRAFICO_VELAS_LIMIT = 120 # cantidad de velas para graficar
+MOSTRAR_EMA20 = True MOSTRAR_ATR = False
 
-BYBIT_API_KEY = os.getenv("BYBIT_API_KEY")
-BYBIT_API_SECRET = os.getenv("BYBIT_API_SECRET")
+======================================================
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+======================================================
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-client_groq = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
+CONFIGURACIÓN GENERAL
 
-if not BYBIT_API_KEY or not BYBIT_API_SECRET:
-    raise Exception("❌ BYBIT_API_KEY o BYBIT_API_SECRET no configuradas")
+======================================================
 
-# ======================================================
-# BYBIT ENDPOINT
-# ======================================================
+SYMBOL = “BTCUSDT” INTERVAL = “1” # 1 minuto RISK_PER_TRADE = 0.0025 #
+0.25% # MAX_TRADES_DAY eliminado - ahora sistema dinámico sin límites
+LEVERAGE = 1 SLEEP_SECONDS = 60
 
-BASE_URL = "https://api.bybit.com"
+======================================================
 
-# ======================================================
-# TELEGRAM (SIN PROXY)
-# ======================================================
+PAPER TRADING (SIMULACIÓN)
 
-def telegram_mensaje(texto):
-    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
-        return
-    try:
-        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-        requests.post(
-            url,
-            data={"chat_id": TELEGRAM_CHAT_ID, "text": texto},
-            timeout=10
-        )
-    except Exception:
-        pass
+======================================================
 
+PAPER_BALANCE_INICIAL = 100.0 PAPER_BALANCE = PAPER_BALANCE_INICIAL
+PAPER_PNL_GLOBAL = 0.0 PAPER_TRADES = [] PAPER_POSICION_ACTIVA = None
+PAPER_PRECIO_ENTRADA = None PAPER_DECISION_ACTIVA = None
+PAPER_TIME_ENTRADA = None PAPER_SIZE_USD = 0.0 PAPER_SIZE_BTC = 0.0
+PAPER_SL = None PAPER_TP = None PAPER_ULTIMO_RESULTADO = None
+PAPER_ULTIMO_PNL = 0.0 PAPER_WIN = 0 PAPER_LOSS = 0 PAPER_TRADES_TOTALES
+= 0 PAPER_MAX_DRAWDOWN = 0.0 PAPER_BALANCE_MAX = PAPER_BALANCE_INICIAL
 
-def telegram_grafico(fig):
-    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
-        return
-    try:
-        buf = io.BytesIO()
-        fig.savefig(buf, format='png', bbox_inches='tight')
-        buf.seek(0)
-        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
-        requests.post(
-            url,
-            files={'photo': buf},
-            data={'chat_id': TELEGRAM_CHAT_ID},
-            timeout=15
-        )
-        buf.close()
-    except Exception:
-        pass
+======================================================
 
-# ======================================================
-# FIRMA BYBIT
-# ======================================================
+CONTROL DINÁMICO DE RIESGO AVANZADO (SIN LÍMITE DE TRADES)
 
-def sign(params):
-    query = '&'.join([f"{k}={v}" for k, v in sorted(params.items())])
-    return hmac.new(
-        BYBIT_API_SECRET.encode(), query.encode(), hashlib.sha256
-    ).hexdigest()
+======================================================
 
-# ======================================================
-# OBTENER VELAS BYBIT (SIN PROXY)
-# ======================================================
+MAX_CONSECUTIVE_LOSSES = 3 PAUSE_AFTER_LOSSES_SECONDS = 60 * 60 * 2 # 2
+horas MAX_DAILY_DRAWDOWN_PCT = 0.03 # 3%
 
-def obtener_velas(limit=300):
-    url = f"{BASE_URL}/v5/market/kline"
-    params = {
-        "category": "linear",
-        "symbol": SYMBOL,
-        "interval": INTERVAL,
-        "limit": limit
-    }
+PAPER_CONSECUTIVE_LOSSES = 0 PAPER_PAUSE_UNTIL = None
+PAPER_DAILY_START_BALANCE = PAPER_BALANCE_INICIAL PAPER_STOPPED_TODAY =
+False PAPER_CURRENT_DAY = None
+
+======================================================
+
+CREDENCIALES (SIN MODIFICAR)
+
+======================================================
+
+BYBIT_API_KEY = os.getenv(“BYBIT_API_KEY”) BYBIT_API_SECRET =
+os.getenv(“BYBIT_API_SECRET”)
+
+TELEGRAM_TOKEN = os.getenv(“TELEGRAM_TOKEN”) TELEGRAM_CHAT_ID =
+os.getenv(“TELEGRAM_CHAT_ID”)
+
+GROQ_API_KEY = os.getenv(“GROQ_API_KEY”) client_groq =
+Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
+
+if not BYBIT_API_KEY or not BYBIT_API_SECRET: raise Exception(“❌
+BYBIT_API_KEY o BYBIT_API_SECRET no configuradas”)
+
+======================================================
+
+BYBIT ENDPOINT
+
+======================================================
+
+BASE_URL = “https://api.bybit.com”
+
+======================================================
+
+TELEGRAM (SIN PROXY)
+
+======================================================
+
+def telegram_mensaje(texto): if not TELEGRAM_TOKEN or not
+TELEGRAM_CHAT_ID: return try: url =
+f”https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage”
+requests.post( url, data={“chat_id”: TELEGRAM_CHAT_ID, “text”: texto},
+timeout=10 ) except Exception: pass
+
+def telegram_grafico(fig): if not TELEGRAM_TOKEN or not
+TELEGRAM_CHAT_ID: return try: buf = io.BytesIO() fig.savefig(buf,
+format=‘png’, bbox_inches=‘tight’) buf.seek(0) url =
+f”https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto” requests.post(
+url, files={‘photo’: buf}, data={‘chat_id’: TELEGRAM_CHAT_ID},
+timeout=15 ) buf.close() except Exception: pass
+
+======================================================
+
+FIRMA BYBIT
+
+======================================================
+
+def sign(params): query = ‘&’.join([f”{k}={v}” for k, v in
+sorted(params.items())]) return hmac.new( BYBIT_API_SECRET.encode(),
+query.encode(), hashlib.sha256 ).hexdigest()
+
+======================================================
+
+OBTENER VELAS BYBIT (SIN PROXY)
+
+======================================================
+
+def obtener_velas(limit=300): url = f”{BASE_URL}/v5/market/kline” params
+= { “category”: “linear”, “symbol”: SYMBOL, “interval”: INTERVAL,
+“limit”: limit }
 
     r = requests.get(
         url,
@@ -207,12 +190,14 @@ def obtener_velas(limit=300):
     df.set_index('time', inplace=True)
     return df
 
-# ======================================================
-# INDICADORES
-# ======================================================
+======================================================
 
-def calcular_indicadores(df):
-    df['ema20'] = df['close'].ewm(span=20).mean()
+INDICADORES
+
+======================================================
+
+def calcular_indicadores(df): df[‘ema20’] =
+df[‘close’].ewm(span=20).mean()
 
     tr = pd.concat([
         df['high'] - df['low'],
@@ -223,23 +208,25 @@ def calcular_indicadores(df):
     df['atr'] = tr.rolling(14).mean()
     return df.dropna()
 
-# ======================================================
-# SOPORTE / RESISTENCIA
-# ======================================================
+======================================================
 
-def detectar_soportes_resistencias(df):
-    soporte = df['close'].rolling(50).min().iloc[-1]
-    resistencia = df['close'].rolling(50).max().iloc[-1]
-    return soporte, resistencia
+SOPORTE / RESISTENCIA
 
-# ======================================================
-# TENDENCIA
-# ======================================================
+======================================================
 
-def detectar_tendencia(df, ventana=80):
-    y = df['close'].values[-ventana:]
-    x = np.arange(len(y))
-    slope, intercept, r, _, _ = linregress(x, y)
+def detectar_soportes_resistencias(df): soporte =
+df[‘close’].rolling(50).min().iloc[-1] resistencia =
+df[‘close’].rolling(50).max().iloc[-1] return soporte, resistencia
+
+======================================================
+
+TENDENCIA
+
+======================================================
+
+def detectar_tendencia(df, ventana=80): y =
+df[‘close’].values[-ventana:] x = np.arange(len(y)) slope, intercept, r,
+, = linregress(x, y)
 
     if slope > 0.02:
         direccion = '📈 ALCISTA'
@@ -250,15 +237,16 @@ def detectar_tendencia(df, ventana=80):
 
     return slope, intercept, direccion
 
-# ======================================================
-# MOTOR V90
-# ======================================================
+======================================================
 
-def motor_v90(df):
-    soporte, resistencia = detectar_soportes_resistencias(df)
-    slope, intercept, tendencia = detectar_tendencia(df)
-    precio = df['close'].iloc[-1]
-    atr = df['atr'].iloc[-1]
+MOTOR V90
+
+======================================================
+
+def motor_v90(df): soporte, resistencia =
+detectar_soportes_resistencias(df) slope, intercept, tendencia =
+detectar_tendencia(df) precio = df[‘close’].iloc[-1] atr =
+df[‘atr’].iloc[-1]
 
     razones = []
 
@@ -273,19 +261,17 @@ def motor_v90(df):
     razones.append('Sin confluencia válida')
     return None, soporte, resistencia, razones
 
-# ======================================================
-# GRÁFICO VELAS JAPONESAS + SOPORTE/RESISTENCIA + TENDENCIA
-# ======================================================
+======================================================
 
-def generar_grafico_entrada(df, decision, soporte, resistencia, slope, intercept, razones):
-    """
-    Genera gráfico de velas japonesas con:
-    - Soporte (línea horizontal)
-    - Resistencia (línea horizontal)
-    - Línea de tendencia inclinada (según slope)
-    - EMA20 (opcional)
-    - Marcador exacto en la vela de entrada
-    """
+GRÁFICO VELAS JAPONESAS + SOPORTE/RESISTENCIA + TENDENCIA
+
+======================================================
+
+def generar_grafico_entrada(df, decision, soporte, resistencia, slope,
+intercept, razones): ““” Genera gráfico de velas japonesas con: -
+Soporte (línea horizontal) - Resistencia (línea horizontal) - Línea de
+tendencia inclinada (según slope) - EMA20 (opcional) - Marcador exacto
+en la vela de entrada ““”
 
     try:
         df_plot = df.copy().tail(GRAFICO_VELAS_LIMIT)
@@ -428,14 +414,15 @@ def generar_grafico_entrada(df, decision, soporte, resistencia, slope, intercept
         print(f"🚨 ERROR GRAFICO: {e}")
         return None
 
-# ======================================================
-# LOG
-# ======================================================
+======================================================
 
-def log_colab(df, tendencia, slope, soporte, resistencia, decision, razones):
-    ahora = datetime.now(timezone.utc)
-    precio = df['close'].iloc[-1]
-    atr = df['atr'].iloc[-1]
+LOG
+
+======================================================
+
+def log_colab(df, tendencia, slope, soporte, resistencia, decision,
+razones): ahora = datetime.now(timezone.utc) precio =
+df[‘close’].iloc[-1] atr = df[‘atr’].iloc[-1]
 
     print("="*100)
     print("🧠 Groq Analyst:", "ACTIVO" if client_groq else "DESACTIVADO")
@@ -447,43 +434,35 @@ def log_colab(df, tendencia, slope, soporte, resistencia, decision, razones):
     print(f"🧠 Razones: {', '.join(razones)}")
     print("="*100)
 
-# ======================================================
-# GROQ
-# ======================================================
+======================================================
 
-def analizar_con_groq(resumen):
-    if not client_groq:
-        return None
-    prompt = f"""
-Eres un trader cuantitativo profesional.
-Analiza este resumen de trading y da recomendaciones claras:
-{resumen}
-Devuelve:
-- Diagnóstico
-- Qué mejorar
-- Qué evitar
-"""
-    try:
-        r = client_groq.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return r.choices[0].message.content
-    except Exception as e:
-        return f"Error Groq: {e}"
+GROQ
 
-# ======================================================
-# GRÁFICO DE ENTRADA (VELAS + SOPORTE/RESISTENCIA + TENDENCIA)
-# ======================================================
+======================================================
 
-# NOTA:
-# En tu código había una segunda función generar_grafico_entrada DUPLICADA.
-# No la elimino (según tu pedido), pero la arreglo para que no rompa el código.
+def analizar_con_groq(resumen): if not client_groq: return None prompt =
+f”“” Eres un trader cuantitativo profesional. Analiza este resumen de
+trading y da recomendaciones claras: {resumen} Devuelve: - Diagnóstico -
+Qué mejorar - Qué evitar ““” try: r =
+client_groq.chat.completions.create( model=“llama-3.3-70b-versatile”,
+messages=[{“role”: “user”, “content”: prompt}] ) return
+r.choices[0].message.content except Exception as e: return f”Error Groq:
+{e}”
 
+======================================================
 
-def generar_grafico_entrada(df, decision, soporte, resistencia, slope, intercept, razones):
-    try:
-        df_plot = df.copy().tail(120)
+GRÁFICO DE ENTRADA (VELAS + SOPORTE/RESISTENCIA + TENDENCIA)
+
+======================================================
+
+NOTA:
+
+En tu código había una segunda función generar_grafico_entrada DUPLICADA.
+
+No la elimino (según tu pedido), pero la arreglo para que no rompa el código.
+
+def generar_grafico_entrada(df, decision, soporte, resistencia, slope,
+intercept, razones): try: df_plot = df.copy().tail(120)
 
         fig, ax = plt.subplots(figsize=(14, 7))
 
@@ -568,19 +547,18 @@ def generar_grafico_entrada(df, decision, soporte, resistencia, slope, intercept
     except Exception as e:
         print(f"🚨 ERROR GRÁFICO: {e}")
         return None
-# ======================================================
-# MOTOR PAPER (EJECUCIÓN SIMULADA)
-# ======================================================
 
-def paper_abrir_posicion(decision, precio, atr, soporte, resistencia, razones, tiempo):
-    global PAPER_POSICION_ACTIVA
-    global PAPER_PRECIO_ENTRADA
-    global PAPER_SL
-    global PAPER_TP
-    global PAPER_SIZE_USD
-    global PAPER_SIZE_BTC
-    global PAPER_TIME_ENTRADA
-    global PAPER_DECISION_ACTIVA
+======================================================
+
+MOTOR PAPER (EJECUCIÓN SIMULADA)
+
+======================================================
+
+def paper_abrir_posicion(decision, precio, atr, soporte, resistencia,
+razones, tiempo): global PAPER_POSICION_ACTIVA global
+PAPER_PRECIO_ENTRADA global PAPER_SL global PAPER_TP global
+PAPER_SIZE_USD global PAPER_SIZE_BTC global PAPER_TIME_ENTRADA global
+PAPER_DECISION_ACTIVA
 
     if PAPER_POSICION_ACTIVA is not None:
         return False
@@ -614,10 +592,8 @@ def paper_abrir_posicion(decision, precio, atr, soporte, resistencia, razones, t
 
     return True
 
-
-def paper_calcular_pnl(precio_actual):
-    if PAPER_POSICION_ACTIVA is None:
-        return 0.0
+def paper_calcular_pnl(precio_actual): if PAPER_POSICION_ACTIVA is None:
+return 0.0
 
     if PAPER_POSICION_ACTIVA == "Buy":
         return (precio_actual - PAPER_PRECIO_ENTRADA) * PAPER_SIZE_BTC
@@ -626,18 +602,10 @@ def paper_calcular_pnl(precio_actual):
 
     return 0.0
 
-
-def paper_revisar_sl_tp(precio_actual):
-    global PAPER_POSICION_ACTIVA
-    global PAPER_BALANCE
-    global PAPER_PNL_GLOBAL
-    global PAPER_WIN
-    global PAPER_LOSS
-    global PAPER_TRADES_TOTALES
-    global PAPER_BALANCE_MAX
-    global PAPER_MAX_DRAWDOWN
-    global PAPER_ULTIMO_RESULTADO
-    global PAPER_ULTIMO_PNL
+def paper_revisar_sl_tp(precio_actual): global PAPER_POSICION_ACTIVA
+global PAPER_BALANCE global PAPER_PNL_GLOBAL global PAPER_WIN global
+PAPER_LOSS global PAPER_TRADES_TOTALES global PAPER_BALANCE_MAX global
+PAPER_MAX_DRAWDOWN global PAPER_ULTIMO_RESULTADO global PAPER_ULTIMO_PNL
 
     if PAPER_POSICION_ACTIVA is None:
         return None
@@ -672,10 +640,20 @@ def paper_revisar_sl_tp(precio_actual):
     PAPER_ULTIMO_PNL = pnl
     PAPER_ULTIMO_RESULTADO = motivo
 
+    global PAPER_CONSECUTIVE_LOSSES
+    global PAPER_PAUSE_UNTIL
+
     if pnl > 0:
         PAPER_WIN += 1
+        PAPER_CONSECUTIVE_LOSSES = 0
     else:
         PAPER_LOSS += 1
+        PAPER_CONSECUTIVE_LOSSES += 1
+
+        if PAPER_CONSECUTIVE_LOSSES >= MAX_CONSECUTIVE_LOSSES:
+            PAPER_PAUSE_UNTIL = datetime.now(timezone.utc) + timedelta(seconds=PAUSE_AFTER_LOSSES_SECONDS)
+            telegram_mensaje("⏸ Pausa activada 2H por 3 pérdidas consecutivas.")
+            PAPER_CONSECUTIVE_LOSSES = 0
 
     if PAPER_BALANCE > PAPER_BALANCE_MAX:
         PAPER_BALANCE_MAX = PAPER_BALANCE
@@ -697,18 +675,52 @@ def paper_revisar_sl_tp(precio_actual):
 
     return resultado
 
+======================================================
 
-# ======================================================
-# LOOP PRINCIPAL
-# ======================================================
+LOOP PRINCIPAL
 
+======================================================
 
-# ======================================================
+======================================================
 
+======================================================
 
-def run_bot():
-    telegram_mensaje("🤖 BOT V90.2 BYBIT REAL INICIADO (SIN PROXY)")
-    trades_hoy = 0
+FUNCIÓN DE CONTROL DINÁMICO DE RIESGO
+
+======================================================
+
+def risk_management_check(): global PAPER_PAUSE_UNTIL global
+PAPER_STOPPED_TODAY global PAPER_DAILY_START_BALANCE global
+PAPER_CURRENT_DAY global PAPER_BALANCE global PAPER_CONSECUTIVE_LOSSES
+
+    ahora = datetime.now(timezone.utc)
+    hoy = ahora.date()
+
+    # Reset diario automático
+    if PAPER_CURRENT_DAY != hoy:
+        PAPER_CURRENT_DAY = hoy
+        PAPER_DAILY_START_BALANCE = PAPER_BALANCE
+        PAPER_STOPPED_TODAY = False
+        PAPER_CONSECUTIVE_LOSSES = 0
+        telegram_mensaje("🔄 Nuevo día detectado - Sistema reactivado.")
+
+    # Cálculo drawdown diario
+    daily_dd_pct = (PAPER_BALANCE - PAPER_DAILY_START_BALANCE) / PAPER_DAILY_START_BALANCE
+
+    if daily_dd_pct <= -MAX_DAILY_DRAWDOWN_PCT:
+        if not PAPER_STOPPED_TODAY:
+            telegram_mensaje(f"🛑 STOP DIARIO ACTIVADO - Drawdown diario {daily_dd_pct*100:.2f}%")
+        PAPER_STOPPED_TODAY = True
+        return False
+
+    # Pausa por pérdidas consecutivas
+    if PAPER_PAUSE_UNTIL and ahora < PAPER_PAUSE_UNTIL:
+        return False
+
+    return True
+
+def run_bot(): telegram_mensaje(“🤖 BOT V90.2 BYBIT REAL INICIADO (SIN
+PROXY)”) trades_hoy = 0
 
     while True:
         try:
@@ -720,7 +732,7 @@ def run_bot():
 
             log_colab(df, tendencia, slope, soporte, resistencia, decision, razones)
 
-            if decision and trades_hoy < MAX_TRADES_DAY:
+            if decision and risk_management_check():
                 precio = df['close'].iloc[-1]
                 atr_actual = df['atr'].iloc[-1]
                 tiempo_actual = df.index[-1]
@@ -791,7 +803,7 @@ def run_bot():
                         f"💵 Balance: {cierre['balance']:.2f} USD\n"
                         f"📊 PnL Global: {PAPER_PNL_GLOBAL:.4f} USD\n"
                         f"🏆 Wins: {PAPER_WIN} | ❌ Loss: {PAPER_LOSS}\n"
-                        f"📉 Max Drawdown: {PAPER_MAX_DRAWDOWN:.4f} USD"
+                        f"📉 Max Drawdown: -{PAPER_MAX_DRAWDOWN:.4f} USD"
                     )
 
                     telegram_mensaje(mensaje_cierre)
@@ -803,35 +815,37 @@ def run_bot():
             telegram_mensaje(f"🚨 ERROR BOT: {e}")
             time.sleep(60)
 
-# ======================================================
-# START
-# ======================================================
+======================================================
 
-if __name__ == '__main__':
-    run_bot()
+START
 
+======================================================
 
+if name == ‘main’: run_bot()
 
-# ======================================================
-# SISTEMA SECUNDARIO INSTITUCIONAL (NO REEMPLAZA EL SISTEMA PRINCIPAL)
-# ======================================================
-# Funciones añadidas:
-# 1 BOS Externo (estructura mayor)
-# Pullback válido estructural
-# Gestión parcial real (50% TP1 / 50% TP2)
-# Estadísticas avanzadas internas
-# Log detallado enviado a Telegram (sin CSV)
-# ======================================================
+======================================================
 
-class InstitutionalStats:
-    def __init__(self):
-        self.total_trades = 0
-        self.wins = 0
-        self.losses = 0
-        self.partial_wins = 0
-        self.total_rr = 0.0
-        self.equity_curve = []
-        self.trade_log = []
+SISTEMA SECUNDARIO INSTITUCIONAL (NO REEMPLAZA EL SISTEMA PRINCIPAL)
+
+======================================================
+
+Funciones añadidas:
+
+1 BOS Externo (estructura mayor)
+
+Pullback válido estructural
+
+Gestión parcial real (50% TP1 / 50% TP2)
+
+Estadísticas avanzadas internas
+
+Log detallado enviado a Telegram (sin CSV)
+
+======================================================
+
+class InstitutionalStats: def init(self): self.total_trades = 0
+self.wins = 0 self.losses = 0 self.partial_wins = 0 self.total_rr = 0.0
+self.equity_curve = [] self.trade_log = []
 
     def register_trade(self, result_rr, partial=False):
         self.total_trades += 1
@@ -856,12 +870,8 @@ class InstitutionalStats:
             return 0
         return self.total_rr / self.total_trades
 
-
-class ExternalBOSDetector:
-    def __init__(self, lookback=50):
-        self.lookback = lookback
-        self.last_swing_high = None
-        self.last_swing_low = None
+class ExternalBOSDetector: def init(self, lookback=50): self.lookback =
+lookback self.last_swing_high = None self.last_swing_low = None
 
     def detect_swings(self, df):
         highs = df['high'].values
@@ -884,10 +894,8 @@ class ExternalBOSDetector:
 
         return bos_alcista, bos_bajista, swing_high, swing_low
 
-
-class PullbackValidator:
-    def __init__(self, tolerance=0.3):
-        self.tolerance = tolerance
+class PullbackValidator: def init(self, tolerance=0.3): self.tolerance =
+tolerance
 
     def es_pullback_valido(self, df, nivel_estructura, direccion):
         precio_actual = df['close'].iloc[-1]
@@ -902,11 +910,8 @@ class PullbackValidator:
 
         return False
 
-
-class PartialTPManager:
-    def __init__(self):
-        self.tp1_hit = False
-        self.tp2_hit = False
+class PartialTPManager: def init(self): self.tp1_hit = False
+self.tp2_hit = False
 
     def gestionar_tp_parcial(self, entry, tp1, tp2, price, side):
         resultado = {
@@ -937,41 +942,34 @@ class PartialTPManager:
 
         return resultado
 
-
-class InstitutionalLogger:
-    def __init__(self, telegram_send_func):
-        self.send_telegram = telegram_send_func
+class InstitutionalLogger: def init(self, telegram_send_func):
+self.send_telegram = telegram_send_func
 
     def log_operacion_completa(self, data):
         mensaje = f"""
+
 📊 OPERACIÓN INSTITUCIONAL DETECTADA
 
-🧠 Sistema: Secundario (BOS Externo)
-📈 Dirección: {data.get('direccion')}
-💰 Entry: {data.get('entry')}
-🎯 TP1 (50%): {data.get('tp1')}
-🎯 TP2 (50%): {data.get('tp2')}
-🛑 SL: {data.get('sl')}
+🧠 Sistema: Secundario (BOS Externo) 📈 Dirección:
+{data.get(‘direccion’)} 💰 Entry: {data.get(‘entry’)} 🎯 TP1 (50%):
+{data.get(‘tp1’)} 🎯 TP2 (50%): {data.get(‘tp2’)} 🛑 SL:
+{data.get(‘sl’)}
 
-📊 RR Esperado: {data.get('rr')}
-🏆 Winrate Global: {data.get('winrate'):.2f}%
-📉 RR Promedio: {data.get('avg_rr'):.2f}
-🔢 Total Trades: {data.get('total_trades')}
-"""
-        self.send_telegram(mensaje)
+📊 RR Esperado: {data.get(‘rr’)} 🏆 Winrate Global:
+{data.get(‘winrate’):.2f}% 📉 RR Promedio: {data.get(‘avg_rr’):.2f} 🔢
+Total Trades: {data.get(‘total_trades’)} ““” self.send_telegram(mensaje)
 
+======================================================
 
-# ======================================================
-# INTEGRADOR DEL SISTEMA SECUNDARIO (CAPA NO INTRUSIVA)
-# ======================================================
+INTEGRADOR DEL SISTEMA SECUNDARIO (CAPA NO INTRUSIVA)
 
-class InstitutionalSecondarySystem:
-    def __init__(self, telegram_send_func):
-        self.bos_detector = ExternalBOSDetector()
-        self.pullback_validator = PullbackValidator()
-        self.tp_manager = PartialTPManager()
-        self.stats = InstitutionalStats()
-        self.logger = InstitutionalLogger(telegram_send_func)
+======================================================
+
+class InstitutionalSecondarySystem: def init(self, telegram_send_func):
+self.bos_detector = ExternalBOSDetector() self.pullback_validator =
+PullbackValidator() self.tp_manager = PartialTPManager() self.stats =
+InstitutionalStats() self.logger =
+InstitutionalLogger(telegram_send_func)
 
     def evaluar_confirmacion_institucional(self, df):
         bos_alcista, bos_bajista, swing_high, swing_low = self.bos_detector.is_bos_externo(df)
@@ -1009,7 +1007,8 @@ class InstitutionalSecondarySystem:
         trade_data["total_trades"] = self.stats.total_trades
         self.logger.log_operacion_completa(trade_data)
 
+======================================================
 
-# ======================================================
-# FIN DEL MÓDULO INSTITUCIONAL SECUNDARIO
-# ======================================================
+FIN DEL MÓDULO INSTITUCIONAL SECUNDARIO
+
+======================================================
