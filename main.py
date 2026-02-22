@@ -33,8 +33,7 @@ CONFIGURACIÓN GENERAL
 ======================================================
 
 SYMBOL = “BTCUSDT” INTERVAL = “1” # 1 minuto RISK_PER_TRADE = 0.0025 #
-0.25% # MAX_TRADES_DAY eliminado - ahora sistema dinámico sin límites
-LEVERAGE = 1 SLEEP_SECONDS = 60
+0.25% LEVERAGE = 1 SLEEP_SECONDS = 60
 
 ======================================================
 
@@ -52,12 +51,12 @@ PAPER_ULTIMO_PNL = 0.0 PAPER_WIN = 0 PAPER_LOSS = 0 PAPER_TRADES_TOTALES
 
 ======================================================
 
-CONTROL DINÁMICO DE RIESGO AVANZADO (SIN LÍMITE DE TRADES)
+CONTROL DINÁMICO DE RIESGO AVANZADO (SIN LÍMITE)
 
 ======================================================
 
-MAX_CONSECUTIVE_LOSSES = 3 PAUSE_AFTER_LOSSES_SECONDS = 60 * 60 * 2 # 2
-horas MAX_DAILY_DRAWDOWN_PCT = 0.03 # 3%
+MAX_CONSECUTIVE_LOSSES = 3 PAUSE_AFTER_LOSSES_SECONDS = 60 * 60 * 2
+MAX_DAILY_DRAWDOWN_PCT = 0.03
 
 PAPER_CONSECUTIVE_LOSSES = 0 PAPER_PAUSE_UNTIL = None
 PAPER_DAILY_START_BALANCE = PAPER_BALANCE_INICIAL PAPER_STOPPED_TODAY =
@@ -652,7 +651,7 @@ PAPER_MAX_DRAWDOWN global PAPER_ULTIMO_RESULTADO global PAPER_ULTIMO_PNL
 
         if PAPER_CONSECUTIVE_LOSSES >= MAX_CONSECUTIVE_LOSSES:
             PAPER_PAUSE_UNTIL = datetime.now(timezone.utc) + timedelta(seconds=PAUSE_AFTER_LOSSES_SECONDS)
-            telegram_mensaje("⏸ Pausa activada 2H por 3 pérdidas consecutivas.")
+            telegram_mensaje("⏸ Pausa 2H activada por 3 pérdidas consecutivas.")
             PAPER_CONSECUTIVE_LOSSES = 0
 
     if PAPER_BALANCE > PAPER_BALANCE_MAX:
@@ -685,7 +684,7 @@ LOOP PRINCIPAL
 
 ======================================================
 
-FUNCIÓN DE CONTROL DINÁMICO DE RIESGO
+FUNCIÓN CONTROL DINÁMICO DE RIESGO
 
 ======================================================
 
@@ -696,31 +695,28 @@ PAPER_CURRENT_DAY global PAPER_BALANCE global PAPER_CONSECUTIVE_LOSSES
     ahora = datetime.now(timezone.utc)
     hoy = ahora.date()
 
-    # Reset diario automático
     if PAPER_CURRENT_DAY != hoy:
         PAPER_CURRENT_DAY = hoy
         PAPER_DAILY_START_BALANCE = PAPER_BALANCE
         PAPER_STOPPED_TODAY = False
         PAPER_CONSECUTIVE_LOSSES = 0
-        telegram_mensaje("🔄 Nuevo día detectado - Sistema reactivado.")
+        telegram_mensaje("🔄 Nuevo día UTC detectado - Sistema reactivado.")
 
-    # Cálculo drawdown diario
     daily_dd_pct = (PAPER_BALANCE - PAPER_DAILY_START_BALANCE) / PAPER_DAILY_START_BALANCE
 
     if daily_dd_pct <= -MAX_DAILY_DRAWDOWN_PCT:
         if not PAPER_STOPPED_TODAY:
-            telegram_mensaje(f"🛑 STOP DIARIO ACTIVADO - Drawdown diario {daily_dd_pct*100:.2f}%")
+            telegram_mensaje(f"🛑 STOP DIARIO ACTIVADO - Drawdown {daily_dd_pct*100:.2f}%")
         PAPER_STOPPED_TODAY = True
         return False
 
-    # Pausa por pérdidas consecutivas
     if PAPER_PAUSE_UNTIL and ahora < PAPER_PAUSE_UNTIL:
         return False
 
     return True
 
 def run_bot(): telegram_mensaje(“🤖 BOT V90.2 BYBIT REAL INICIADO (SIN
-PROXY)”) trades_hoy = 0
+PROXY)”)
 
     while True:
         try:
