@@ -64,6 +64,17 @@ PAPER_MAX_DRAWDOWN = 0.0
 PAPER_BALANCE_MAX = PAPER_BALANCE_INICIAL
 
 # ======================================================
+# EXTENSIÓN INTRABAR + GESTIÓN PARCIAL 50/50 (INTEGRADA)
+# ======================================================
+
+PAPER_TP1 = None
+PAPER_TP2 = None
+PAPER_PARTIAL_ACTIVADO = False
+PAPER_SIZE_BTC_RESTANTE = 0.0
+PAPER_TP1_EJECUTADO = False
+
+
+# ======================================================
 # CONTROL DINÁMICO DE RIESGO AVANZADO (SIN LÍMITE)
 # ======================================================
 MAX_CONSECUTIVE_LOSSES = 3
@@ -585,15 +596,21 @@ def generar_grafico_entrada(df, decision, soporte, resistencia, slope, intercept
 # MOTOR PAPER (EJECUCIÓN SIMULADA)
 # ======================================================
 
+
 def paper_abrir_posicion(decision, precio, atr, soporte, resistencia, razones, tiempo):
     global PAPER_POSICION_ACTIVA
     global PAPER_PRECIO_ENTRADA
     global PAPER_SL
     global PAPER_TP
+    global PAPER_TP1
+    global PAPER_TP2
     global PAPER_SIZE_USD
     global PAPER_SIZE_BTC
+    global PAPER_SIZE_BTC_RESTANTE
     global PAPER_TIME_ENTRADA
     global PAPER_DECISION_ACTIVA
+    global PAPER_PARTIAL_ACTIVADO
+    global PAPER_TP1_EJECUTADO
 
     if PAPER_POSICION_ACTIVA is not None:
         return False
@@ -602,10 +619,12 @@ def paper_abrir_posicion(decision, precio, atr, soporte, resistencia, razones, t
 
     if decision == "Buy":
         sl = precio - atr
-        tp = precio + (atr * 2)
+        tp1 = precio + atr
+        tp2 = precio + (atr * 2)
     elif decision == "Sell":
         sl = precio + atr
-        tp = precio - (atr * 2)
+        tp1 = precio - atr
+        tp2 = precio - (atr * 2)
     else:
         return False
 
@@ -620,13 +639,17 @@ def paper_abrir_posicion(decision, precio, atr, soporte, resistencia, razones, t
     PAPER_DECISION_ACTIVA = decision
     PAPER_PRECIO_ENTRADA = precio
     PAPER_SL = sl
-    PAPER_TP = tp
+    PAPER_TP = tp2
+    PAPER_TP1 = tp1
+    PAPER_TP2 = tp2
     PAPER_SIZE_USD = size_usd
     PAPER_SIZE_BTC = size_btc
+    PAPER_SIZE_BTC_RESTANTE = size_btc
     PAPER_TIME_ENTRADA = tiempo
+    PAPER_PARTIAL_ACTIVADO = True
+    PAPER_TP1_EJECUTADO = False
 
     return True
-
 
 def paper_calcular_pnl(precio_actual):
     if PAPER_POSICION_ACTIVA is None:
@@ -640,7 +663,8 @@ def paper_calcular_pnl(precio_actual):
     return 0.0
 
 
-def paper_revisar_sl_tp(precio_actual):
+
+def paper_revisar_sl_tp(df):
     global PAPER_POSICION_ACTIVA
     global PAPER_BALANCE
     global PAPER_PNL_GLOBAL
@@ -651,54 +675,77 @@ def paper_revisar_sl_tp(precio_actual):
     global PAPER_MAX_DRAWDOWN
     global PAPER_ULTIMO_RESULTADO
     global PAPER_ULTIMO_PNL
+    global PAPER_SIZE_BTC_RESTANTE
+    global PAPER_TP1_EJECUTADO
 
     if PAPER_POSICION_ACTIVA is None:
         return None
 
-    cerrar = False
-    motivo = None
+    high = df['high'].iloc[-1]
+    low = df['low'].iloc[-1]
 
+    cerrar_total = False
+    motivo = None
+    pnl_total = 0.0
+
+    # ------------------------------
+    # TP1 PARCIAL
+    # ------------------------------
     if PAPER_POSICION_ACTIVA == "Buy":
-        if precio_actual <= PAPER_SL:
-            cerrar = True
+        if (not PAPER_TP1_EJECUTADO) and high >= PAPER_TP1:
+            pnl_parcial = (PAPER_TP1 - PAPER_PRECIO_ENTRADA) * (PAPER_SIZE_BTC / 2)
+            PAPER_BALANCE += pnl_parcial
+            PAPER_PNL_GLOBAL += pnl_parcial
+            PAPER_SIZE_BTC_RESTANTE = PAPER_SIZE_BTC / 2
+            PAPER_TP1_EJECUTADO = True
+            PAPER_SL = PAPER_PRECIO_ENTRADA
+            telegram_mensaje("🎯 TP1 alcanzado - 50% cerrado y SL movido a BE")
+
+        if low <= PAPER_SL:
+            cerrar_total = True
             motivo = "SL"
-        elif precio_actual >= PAPER_TP:
-            cerrar = True
-            motivo = "TP"
+
+        if high >= PAPER_TP2:
+            cerrar_total = True
+            motivo = "TP2"
 
     elif PAPER_POSICION_ACTIVA == "Sell":
-        if precio_actual >= PAPER_SL:
-            cerrar = True
-            motivo = "SL"
-        elif precio_actual <= PAPER_TP:
-            cerrar = True
-            motivo = "TP"
+        if (not PAPER_TP1_EJECUTADO) and low <= PAPER_TP1:
+            pnl_parcial = (PAPER_PRECIO_ENTRADA - PAPER_TP1) * (PAPER_SIZE_BTC / 2)
+            PAPER_BALANCE += pnl_parcial
+            PAPER_PNL_GLOBAL += pnl_parcial
+            PAPER_SIZE_BTC_RESTANTE = PAPER_SIZE_BTC / 2
+            PAPER_TP1_EJECUTADO = True
+            PAPER_SL = PAPER_PRECIO_ENTRADA
+            telegram_mensaje("🎯 TP1 alcanzado - 50% cerrado y SL movido a BE")
 
-    if not cerrar:
+        if high >= PAPER_SL:
+            cerrar_total = True
+            motivo = "SL"
+
+        if low <= PAPER_TP2:
+            cerrar_total = True
+            motivo = "TP2"
+
+    if not cerrar_total:
         return None
 
-    pnl = paper_calcular_pnl(precio_actual)
+    # Cierre final 50% restante
+    if PAPER_POSICION_ACTIVA == "Buy":
+        pnl_final = (df['close'].iloc[-1] - PAPER_PRECIO_ENTRADA) * PAPER_SIZE_BTC_RESTANTE
+    else:
+        pnl_final = (PAPER_PRECIO_ENTRADA - df['close'].iloc[-1]) * PAPER_SIZE_BTC_RESTANTE
 
-    PAPER_BALANCE += pnl
-    PAPER_PNL_GLOBAL += pnl
+    PAPER_BALANCE += pnl_final
+    PAPER_PNL_GLOBAL += pnl_final
     PAPER_TRADES_TOTALES += 1
-    PAPER_ULTIMO_PNL = pnl
+    PAPER_ULTIMO_PNL = pnl_final
     PAPER_ULTIMO_RESULTADO = motivo
 
-    global PAPER_CONSECUTIVE_LOSSES
-    global PAPER_PAUSE_UNTIL
-
-    if pnl > 0:
+    if pnl_final > 0:
         PAPER_WIN += 1
-        PAPER_CONSECUTIVE_LOSSES = 0
     else:
         PAPER_LOSS += 1
-        PAPER_CONSECUTIVE_LOSSES += 1
-
-        if PAPER_CONSECUTIVE_LOSSES >= MAX_CONSECUTIVE_LOSSES:
-            PAPER_PAUSE_UNTIL = datetime.now(timezone.utc) + timedelta(seconds=PAUSE_AFTER_LOSSES_SECONDS)
-            telegram_mensaje("⏸ Pausa 2H activada por 3 pérdidas consecutivas.")
-            PAPER_CONSECUTIVE_LOSSES = 0
 
     if PAPER_BALANCE > PAPER_BALANCE_MAX:
         PAPER_BALANCE_MAX = PAPER_BALANCE
@@ -710,16 +757,14 @@ def paper_revisar_sl_tp(precio_actual):
     resultado = {
         "decision": PAPER_DECISION_ACTIVA,
         "entrada": PAPER_PRECIO_ENTRADA,
-        "salida": precio_actual,
-        "pnl": pnl,
+        "salida": df['close'].iloc[-1],
+        "pnl": pnl_final,
         "balance": PAPER_BALANCE,
         "motivo": motivo
     }
 
     PAPER_POSICION_ACTIVA = None
-
     return resultado
-
 
 # ======================================================
 # LOOP PRINCIPAL
@@ -838,7 +883,7 @@ def run_bot():
 
             if PAPER_POSICION_ACTIVA is not None:
                 precio_actual = df['close'].iloc[-1]
-                cierre = paper_revisar_sl_tp(precio_actual)
+                cierre = paper_revisar_sl_tp(df)
 
                 if cierre:
                     mensaje_cierre = (
