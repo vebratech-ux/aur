@@ -731,10 +731,25 @@ def paper_revisar_sl_tp(df):
         return None
 
     # Cierre final 50% restante
-    if PAPER_POSICION_ACTIVA == "Buy":
-        pnl_final = (df['close'].iloc[-1] - PAPER_PRECIO_ENTRADA) * PAPER_SIZE_BTC_RESTANTE
+    # --------------------------------------------------
+    # PRECIO REAL DEL EVENTO (NO USAR CLOSE)
+    # --------------------------------------------------
+
+    if motivo == "TP2":
+        PRECIO_SALIDA_EVENTO = PAPER_TP2
+    elif motivo == "SL":
+        PRECIO_SALIDA_EVENTO = PAPER_SL
     else:
-        pnl_final = (PAPER_PRECIO_ENTRADA - df['close'].iloc[-1]) * PAPER_SIZE_BTC_RESTANTE
+        PRECIO_SALIDA_EVENTO = df['close'].iloc[-1]  # fallback de seguridad
+
+    # --------------------------------------------------
+    # CÁLCULO CORRECTO DEL 50% RESTANTE
+    # --------------------------------------------------
+
+    if PAPER_POSICION_ACTIVA == "Buy":
+        pnl_final = (PRECIO_SALIDA_EVENTO - PAPER_PRECIO_ENTRADA) * PAPER_SIZE_BTC_RESTANTE
+    else:
+        pnl_final = (PAPER_PRECIO_ENTRADA - PRECIO_SALIDA_EVENTO) * PAPER_SIZE_BTC_RESTANTE
 
     PAPER_BALANCE += pnl_final
     PAPER_PNL_GLOBAL += pnl_final
@@ -757,13 +772,11 @@ def paper_revisar_sl_tp(df):
     resultado = {
         "decision": PAPER_DECISION_ACTIVA,
         "entrada": PAPER_PRECIO_ENTRADA,
-        "salida": df['close'].iloc[-1],
+        "salida": PRECIO_SALIDA_EVENTO,
         "pnl": pnl_final,
         "balance": PAPER_BALANCE,
         "motivo": motivo
     }
-
-    PAPER_POSICION_ACTIVA = None
     return resultado
 
 # ======================================================
