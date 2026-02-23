@@ -761,17 +761,16 @@ def paper_revisar_sl_tp(df):
     PAPER_ULTIMO_PNL = pnl_final
     PAPER_ULTIMO_RESULTADO = motivo
 
-   if pnl_final > 0:
-    PAPER_WIN += 1
-    PAPER_CONSECUTIVE_LOSSES = 0   # reset racha al ganar
-else:
-    PAPER_LOSS += 1
-    PAPER_CONSECUTIVE_LOSSES += 1  # sumar pérdida consecutiva
+    if pnl_final > 0:
+            PAPER_WIN += 1
+            PAPER_CONSECUTIVE_LOSSES = 0
+        else:
+            PAPER_LOSS += 1
+            PAPER_CONSECUTIVE_LOSSES += 1
 
-    # 🔒 Activar pausa si se alcanza el máximo
-    if PAPER_CONSECUTIVE_LOSSES >= MAX_CONSECUTIVE_LOSSES:
-        PAPER_PAUSE_UNTIL = datetime.now(timezone.utc) + timedelta(seconds=PAUSE_AFTER_LOSSES_SECONDS)
-        telegram_mensaje(f"⏸ Pausa activada por {MAX_CONSECUTIVE_LOSSES} pérdidas consecutivas.")
+            if PAPER_CONSECUTIVE_LOSSES >= MAX_CONSECUTIVE_LOSSES:
+                PAPER_PAUSE_UNTIL = datetime.now(timezone.utc) + timedelta(seconds=PAUSE_AFTER_LOSSES_SECONDS)
+                telegram_mensaje(f"⏸ Pausa activada por {MAX_CONSECUTIVE_LOSSES} pérdidas consecutivas.")
 
     if PAPER_BALANCE > PAPER_BALANCE_MAX:
         PAPER_BALANCE_MAX = PAPER_BALANCE
