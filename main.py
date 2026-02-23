@@ -686,6 +686,7 @@ def paper_revisar_sl_tp(df):
     global PAPER_CONSECUTIVE_LOSSES
     global PAPER_PAUSE_UNTIL
 
+    # Si no hay posición activa, no hacer nada
     if PAPER_POSICION_ACTIVA is None:
         return None
 
