@@ -695,11 +695,11 @@ def paper_revisar_sl_tp(df):
 
     cerrar_total = False
     motivo = None
-    pnl_total = 0.0
+    pnl_final = 0.0
 
-    # ------------------------------
-    # TP1 PARCIAL
-    # ------------------------------
+    # =========================
+    # TP1 PARCIAL (BUY)
+    # =========================
     if PAPER_POSICION_ACTIVA == "Buy":
         if (not PAPER_TP1_EJECUTADO) and high >= PAPER_TP1:
             pnl_parcial = (PAPER_TP1 - PAPER_PRECIO_ENTRADA) * (PAPER_SIZE_BTC / 2)
@@ -708,16 +708,19 @@ def paper_revisar_sl_tp(df):
             PAPER_SIZE_BTC_RESTANTE = PAPER_SIZE_BTC / 2
             PAPER_TP1_EJECUTADO = True
             PAPER_SL = PAPER_PRECIO_ENTRADA
-            telegram_mensaje("🎯 TP1 alcanzado - 50% cerrado y SL movido a BE")
-            
+            telegram_mensaje("🎯 TP1 alcanzado - 50% cerrado y SL a BE")
+
         if low <= PAPER_SL:
             cerrar_total = True
             motivo = "SL"
 
-        if high >= PAPER_TP2:
+        elif high >= PAPER_TP2:
             cerrar_total = True
             motivo = "TP2"
 
+    # =========================
+    # TP1 PARCIAL (SELL)
+    # =========================
     elif PAPER_POSICION_ACTIVA == "Sell":
         if (not PAPER_TP1_EJECUTADO) and low <= PAPER_TP1:
             pnl_parcial = (PAPER_PRECIO_ENTRADA - PAPER_TP1) * (PAPER_SIZE_BTC / 2)
@@ -726,91 +729,67 @@ def paper_revisar_sl_tp(df):
             PAPER_SIZE_BTC_RESTANTE = PAPER_SIZE_BTC / 2
             PAPER_TP1_EJECUTADO = True
             PAPER_SL = PAPER_PRECIO_ENTRADA
-            telegram_mensaje("🎯 TP1 alcanzado - 50% cerrado y SL movido a BE")
+            telegram_mensaje("🎯 TP1 alcanzado - 50% cerrado y SL a BE")
 
         if high >= PAPER_SL:
             cerrar_total = True
             motivo = "SL"
 
-        if low <= PAPER_TP2:
+        elif low <= PAPER_TP2:
             cerrar_total = True
             motivo = "TP2"
 
-    if not cerrar_total:
-        return None
+    # =========================
+    # CIERRE TOTAL DE LA OPERACIÓN
+    # =========================
+    if cerrar_total:
+        if PAPER_POSICION_ACTIVA == "Buy":
+            precio_salida = PAPER_TP2 if motivo == "TP2" else PAPER_SL
+            pnl_final = (precio_salida - PAPER_PRECIO_ENTRADA) * PAPER_SIZE_BTC_RESTANTE
+        else:
+            precio_salida = PAPER_TP2 if motivo == "TP2" else PAPER_SL
+            pnl_final = (PAPER_PRECIO_ENTRADA - precio_salida) * PAPER_SIZE_BTC_RESTANTE
 
-    # Cierre final 50% restante
-    # --------------------------------------------------
-    # PRECIO REAL DEL EVENTO (NO USAR CLOSE)
-    # --------------------------------------------------
+        PAPER_BALANCE += pnl_final
+        PAPER_PNL_GLOBAL += pnl_final
+        PAPER_TRADES_TOTALES += 1
+        PAPER_ULTIMO_PNL = pnl_final
+        PAPER_ULTIMO_RESULTADO = "WIN" if pnl_final > 0 else "LOSS"
 
-    if motivo == "TP2":
-        PRECIO_SALIDA_EVENTO = PAPER_TP2
-    elif motivo == "SL":
-        PRECIO_SALIDA_EVENTO = PAPER_SL
-    else:
-        PRECIO_SALIDA_EVENTO = df['close'].iloc[-1]  # fallback de seguridad
+        if pnl_final > 0:
+            PAPER_WIN += 1
+            PAPER_CONSECUTIVE_LOSSES = 0
+        else:
+            PAPER_LOSS += 1
+            PAPER_CONSECUTIVE_LOSSES += 1
 
-    # --------------------------------------------------
-    # CÁLCULO CORRECTO DEL 50% RESTANTE
-    # --------------------------------------------------
+        if PAPER_BALANCE > PAPER_BALANCE_MAX:
+            PAPER_BALANCE_MAX = PAPER_BALANCE
 
-    if PAPER_POSICION_ACTIVA == "Buy":
-        pnl_final = (PRECIO_SALIDA_EVENTO - PAPER_PRECIO_ENTRADA) * PAPER_SIZE_BTC_RESTANTE
-    else:
-        pnl_final = (PAPER_PRECIO_ENTRADA - PRECIO_SALIDA_EVENTO) * PAPER_SIZE_BTC_RESTANTE
+        drawdown = (PAPER_BALANCE_MAX - PAPER_BALANCE)
+        if drawdown > PAPER_MAX_DRAWDOWN:
+            PAPER_MAX_DRAWDOWN = drawdown
 
-    PAPER_BALANCE += pnl_final
-    PAPER_PNL_GLOBAL += pnl_final
-    PAPER_TRADES_TOTALES += 1
-    PAPER_ULTIMO_PNL = pnl_final
-    PAPER_ULTIMO_RESULTADO = motivo
+        # 🔴 RESET COMPLETO (SOLUCIONA EL CONGELAMIENTO)
+        PAPER_POSICION_ACTIVA = None
+        PAPER_DECISION_ACTIVA = None
+        PAPER_PRECIO_ENTRADA = None
+        PAPER_SL = None
+        PAPER_TP1 = None
+        PAPER_TP2 = None
+        PAPER_SIZE_BTC = 0.0
+        PAPER_SIZE_BTC_RESTANTE = 0.0
+        PAPER_TP1_EJECUTADO = False
 
-    if pnl_final > 0:
-        PAPER_WIN += 1
-        PAPER_CONSECUTIVE_LOSSES = 0
-    else:
-        PAPER_LOSS += 1
-        PAPER_CONSECUTIVE_LOSSES += 1
+        telegram_mensaje(f"📤 Trade cerrado por {motivo} | PnL: {pnl_final:.2f} USDT")
 
-        if PAPER_CONSECUTIVE_LOSSES >= MAX_CONSECUTIVE_LOSSES:
-            PAPER_PAUSE_UNTIL = datetime.now(timezone.utc) + timedelta(seconds=PAUSE_AFTER_LOSSES_SECONDS)
-            telegram_mensaje(f"⏸ Pausa activada por {MAX_CONSECUTIVE_LOSSES} pérdidas consecutivas.")
+        return {
+            "evento": motivo,
+            "pnl": pnl_final,
+            "balance": PAPER_BALANCE
+        }
 
-            if PAPER_CONSECUTIVE_LOSSES >= MAX_CONSECUTIVE_LOSSES:
-                PAPER_PAUSE_UNTIL = datetime.now(timezone.utc) + timedelta(seconds=PAUSE_AFTER_LOSSES_SECONDS)
-                telegram_mensaje(f"⏸ Pausa activada por {MAX_CONSECUTIVE_LOSSES} pérdidas consecutivas.")
-
-    if PAPER_BALANCE > PAPER_BALANCE_MAX:
-        PAPER_BALANCE_MAX = PAPER_BALANCE
-
-    drawdown = PAPER_BALANCE_MAX - PAPER_BALANCE
-    if drawdown > PAPER_MAX_DRAWDOWN:
-        PAPER_MAX_DRAWDOWN = drawdown
-
-       resultado = {
-        "decision": PAPER_DECISION_ACTIVA,
-        "entrada": PAPER_PRECIO_ENTRADA,
-        "salida": PRECIO_SALIDA_EVENTO,
-        "pnl": pnl_final,
-        "balance": PAPER_BALANCE,
-        "motivo": motivo
-    }
-
-    # RESET
-    PAPER_POSICION_ACTIVA = None
-    PAPER_DECISION_ACTIVA = None
-    PAPER_PRECIO_ENTRADA = None
-    PAPER_SL = None
-    PAPER_TP1 = None
-    PAPER_TP2 = None
-    PAPER_SIZE_BTC = 0.0
-    PAPER_SIZE_BTC_RESTANTE = 0.0
-    PAPER_TP1_EJECUTADO = False
-
-    telegram_mensaje(f"📤 Trade cerrado por {motivo} | PnL: {pnl_final:.2f} USDT")
-
-    return resultado
+    return None
 
 # ======================================================
 # LOOP PRINCIPAL
