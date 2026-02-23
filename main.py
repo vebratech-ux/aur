@@ -34,10 +34,10 @@ MOSTRAR_ATR = False
 # ======================================================
 
 SYMBOL = "BTCUSDT"
-INTERVAL = "1"  # 1 minuto
+INTERVAL = "5"  # 5 minutos
 RISK_PER_TRADE = 0.0025   # 0.25%
 LEVERAGE = 1
-SLEEP_SECONDS = 60
+SLEEP_SECONDS = 300  # 5 minutos
 
 # ======================================================
 # PAPER TRADING (SIMULACIÓN)
