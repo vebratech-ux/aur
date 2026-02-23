@@ -666,21 +666,23 @@ def paper_calcular_pnl(precio_actual):
 
 def paper_revisar_sl_tp(df):
     global PAPER_SL
-    global PAPER_TP2
-    global PAPER_PRECIO_ENTRADA
-    global PAPER_DECISION_ACTIVA
-    global PAPER_POSICION_ACTIVA
-    global PAPER_BALANCE
-    global PAPER_PNL_GLOBAL
-    global PAPER_WIN
-    global PAPER_LOSS
-    global PAPER_TRADES_TOTALES
-    global PAPER_BALANCE_MAX
-    global PAPER_MAX_DRAWDOWN
-    global PAPER_ULTIMO_RESULTADO
-    global PAPER_ULTIMO_PNL
-    global PAPER_SIZE_BTC_RESTANTE
-    global PAPER_TP1_EJECUTADO
+global PAPER_TP1
+global PAPER_TP2
+global PAPER_PRECIO_ENTRADA
+global PAPER_DECISION_ACTIVA
+global PAPER_POSICION_ACTIVA
+global PAPER_BALANCE
+global PAPER_PNL_GLOBAL
+global PAPER_WIN
+global PAPER_LOSS
+global PAPER_TRADES_TOTALES
+global PAPER_BALANCE_MAX
+global PAPER_MAX_DRAWDOWN
+global PAPER_ULTIMO_RESULTADO
+global PAPER_ULTIMO_PNL
+global PAPER_SIZE_BTC
+global PAPER_SIZE_BTC_RESTANTE
+global PAPER_TP1_EJECUTADO
 
     if PAPER_POSICION_ACTIVA is None:
         return None
@@ -784,16 +786,31 @@ def paper_revisar_sl_tp(df):
         PAPER_MAX_DRAWDOWN = drawdown
 
     resultado = {
-        "decision": PAPER_DECISION_ACTIVA,
-        "entrada": PAPER_PRECIO_ENTRADA,
-        "salida": PRECIO_SALIDA_EVENTO,
-        "pnl": pnl_final,
-        "balance": PAPER_BALANCE,
-        "motivo": motivo
-    }
+    "decision": PAPER_DECISION_ACTIVA,
+    "entrada": PAPER_PRECIO_ENTRADA,
+    "salida": PRECIO_SALIDA_EVENTO,
+    "pnl": pnl_final,
+    "balance": PAPER_BALANCE,
+    "motivo": motivo
+}
 
- 
-    return resultado
+# ===================================================
+# 🔴 RESET COMPLETO DE LA POSICIÓN (FIX CRÍTICO)
+# ===================================================
+PAPER_POSICION_ACTIVA = None
+PAPER_DECISION_ACTIVA = None
+PAPER_PRECIO_ENTRADA = None
+PAPER_SL = None
+PAPER_TP1 = None
+PAPER_TP2 = None
+PAPER_SIZE_BTC = 0.0
+PAPER_SIZE_BTC_RESTANTE = 0.0
+PAPER_TP1_EJECUTADO = False
+
+# (Opcional pero recomendado)
+telegram_mensaje(f"📤 Trade cerrado por {motivo} | PnL: {pnl_final:.2f} USDT")
+
+return resultado
 
 # ======================================================
 # LOOP PRINCIPAL
