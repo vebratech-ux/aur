@@ -782,18 +782,7 @@ def paper_revisar_sl_tp(df):
         "motivo": motivo
     }
 
-    # Reset completo de posición
-PAPER_POSICION_ACTIVA = None
-PAPER_PRECIO_ENTRADA = None
-PAPER_SL = None
-PAPER_TP = None
-PAPER_TP1 = None
-PAPER_TP2 = None
-PAPER_SIZE_BTC = 0.0
-PAPER_SIZE_BTC_RESTANTE = 0.0
-PAPER_PARTIAL_ACTIVADO = False
-PAPER_TP1_EJECUTADO = False
-PAPER_DECISION_ACTIVA = None
+ 
     return resultado
 
 # ======================================================
