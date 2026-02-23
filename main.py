@@ -704,7 +704,7 @@ def paper_revisar_sl_tp(df):
             PAPER_TP1_EJECUTADO = True
             PAPER_SL = PAPER_PRECIO_ENTRADA
             telegram_mensaje("🎯 TP1 alcanzado - 50% cerrado y SL movido a BE")
-
+            
         if low <= PAPER_SL:
             cerrar_total = True
             motivo = "SL"
@@ -762,11 +762,15 @@ def paper_revisar_sl_tp(df):
     PAPER_ULTIMO_RESULTADO = motivo
 
     if pnl_final > 0:
-            PAPER_WIN += 1
-            PAPER_CONSECUTIVE_LOSSES = 0
-        else:
-            PAPER_LOSS += 1
-            PAPER_CONSECUTIVE_LOSSES += 1
+        PAPER_WIN += 1
+        PAPER_CONSECUTIVE_LOSSES = 0
+    else:
+        PAPER_LOSS += 1
+        PAPER_CONSECUTIVE_LOSSES += 1
+
+        if PAPER_CONSECUTIVE_LOSSES >= MAX_CONSECUTIVE_LOSSES:
+            PAPER_PAUSE_UNTIL = datetime.now(timezone.utc) + timedelta(seconds=PAUSE_AFTER_LOSSES_SECONDS)
+            telegram_mensaje(f"⏸ Pausa activada por {MAX_CONSECUTIVE_LOSSES} pérdidas consecutivas.")
 
             if PAPER_CONSECUTIVE_LOSSES >= MAX_CONSECUTIVE_LOSSES:
                 PAPER_PAUSE_UNTIL = datetime.now(timezone.utc) + timedelta(seconds=PAUSE_AFTER_LOSSES_SECONDS)
