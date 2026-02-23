@@ -665,28 +665,16 @@ def paper_calcular_pnl(precio_actual):
 
 
 def paper_revisar_sl_tp(df):
-    global PAPER_SL
-    global PAPER_TP1
-    global PAPER_TP2
-    global PAPER_PRECIO_ENTRADA
-    global PAPER_DECISION_ACTIVA
-    global PAPER_POSICION_ACTIVA
-    global PAPER_BALANCE
-    global PAPER_PNL_GLOBAL
-    global PAPER_WIN
-    global PAPER_LOSS
-    global PAPER_TRADES_TOTALES
-    global PAPER_BALANCE_MAX
-    global PAPER_MAX_DRAWDOWN
-    global PAPER_ULTIMO_RESULTADO
-    global PAPER_ULTIMO_PNL
-    global PAPER_SIZE_BTC
-    global PAPER_SIZE_BTC_RESTANTE
-    global PAPER_TP1_EJECUTADO
-    global PAPER_CONSECUTIVE_LOSSES
+    global PAPER_SL, PAPER_TP1, PAPER_TP2
+    global PAPER_PRECIO_ENTRADA, PAPER_DECISION_ACTIVA
+    global PAPER_POSICION_ACTIVA, PAPER_BALANCE, PAPER_PNL_GLOBAL
+    global PAPER_WIN, PAPER_LOSS, PAPER_TRADES_TOTALES
+    global PAPER_BALANCE_MAX, PAPER_MAX_DRAWDOWN
+    global PAPER_ULTIMO_RESULTADO, PAPER_ULTIMO_PNL
+    global PAPER_SIZE_BTC, PAPER_SIZE_BTC_RESTANTE
+    global PAPER_TP1_EJECUTADO, PAPER_CONSECUTIVE_LOSSES
     global PAPER_PAUSE_UNTIL
 
-    # Si no hay posición activa, no hacer nada
     if PAPER_POSICION_ACTIVA is None:
         return None
 
@@ -695,11 +683,8 @@ def paper_revisar_sl_tp(df):
 
     cerrar_total = False
     motivo = None
-    pnl_final = 0.0
 
-    # =========================
-    # TP1 PARCIAL (BUY)
-    # =========================
+    # ===== BUY =====
     if PAPER_POSICION_ACTIVA == "Buy":
         if (not PAPER_TP1_EJECUTADO) and high >= PAPER_TP1:
             pnl_parcial = (PAPER_TP1 - PAPER_PRECIO_ENTRADA) * (PAPER_SIZE_BTC / 2)
@@ -713,14 +698,11 @@ def paper_revisar_sl_tp(df):
         if low <= PAPER_SL:
             cerrar_total = True
             motivo = "SL"
-
         elif high >= PAPER_TP2:
             cerrar_total = True
             motivo = "TP2"
 
-    # =========================
-    # TP1 PARCIAL (SELL)
-    # =========================
+    # ===== SELL =====
     elif PAPER_POSICION_ACTIVA == "Sell":
         if (not PAPER_TP1_EJECUTADO) and low <= PAPER_TP1:
             pnl_parcial = (PAPER_PRECIO_ENTRADA - PAPER_TP1) * (PAPER_SIZE_BTC / 2)
@@ -734,14 +716,11 @@ def paper_revisar_sl_tp(df):
         if high >= PAPER_SL:
             cerrar_total = True
             motivo = "SL"
-
         elif low <= PAPER_TP2:
             cerrar_total = True
             motivo = "TP2"
 
-    # =========================
-    # CIERRE TOTAL DE LA OPERACIÓN
-    # =========================
+    # ===== CIERRE TOTAL (DENTRO DE LA FUNCIÓN) =====
     if cerrar_total:
         if PAPER_POSICION_ACTIVA == "Buy":
             precio_salida = PAPER_TP2 if motivo == "TP2" else PAPER_SL
@@ -750,27 +729,17 @@ def paper_revisar_sl_tp(df):
             precio_salida = PAPER_TP2 if motivo == "TP2" else PAPER_SL
             pnl_final = (PAPER_PRECIO_ENTRADA - precio_salida) * PAPER_SIZE_BTC_RESTANTE
 
+        decision_guardada = PAPER_DECISION_ACTIVA
+        entrada_guardada = PAPER_PRECIO_ENTRADA
+        balance_final = PAPER_BALANCE + pnl_final
+
         PAPER_BALANCE += pnl_final
         PAPER_PNL_GLOBAL += pnl_final
         PAPER_TRADES_TOTALES += 1
         PAPER_ULTIMO_PNL = pnl_final
-        PAPER_ULTIMO_RESULTADO = "WIN" if pnl_final > 0 else "LOSS"
+        PAPER_ULTIMO_RESULTADO = motivo
 
-        if pnl_final > 0:
-            PAPER_WIN += 1
-            PAPER_CONSECUTIVE_LOSSES = 0
-        else:
-            PAPER_LOSS += 1
-            PAPER_CONSECUTIVE_LOSSES += 1
-
-        if PAPER_BALANCE > PAPER_BALANCE_MAX:
-            PAPER_BALANCE_MAX = PAPER_BALANCE
-
-        drawdown = (PAPER_BALANCE_MAX - PAPER_BALANCE)
-        if drawdown > PAPER_MAX_DRAWDOWN:
-            PAPER_MAX_DRAWDOWN = drawdown
-
-        # 🔴 RESET COMPLETO (SOLUCIONA EL CONGELAMIENTO)
+        # RESET
         PAPER_POSICION_ACTIVA = None
         PAPER_DECISION_ACTIVA = None
         PAPER_PRECIO_ENTRADA = None
@@ -784,13 +753,15 @@ def paper_revisar_sl_tp(df):
         telegram_mensaje(f"📤 Trade cerrado por {motivo} | PnL: {pnl_final:.2f} USDT")
 
         return {
-            "evento": motivo,
+            "decision": decision_guardada,
+            "motivo": motivo,
+            "entrada": entrada_guardada,
+            "salida": precio_salida,
             "pnl": pnl_final,
-            "balance": PAPER_BALANCE
+            "balance": balance_final
         }
 
     return None
-
 # ======================================================
 # LOOP PRINCIPAL
 # ======================================================
