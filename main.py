@@ -938,21 +938,20 @@ def run_bot():
     sistema_institucional = InstitutionalSecondarySystem(telegram_mensaje)
 
     while True:
-        try:
-            df = obtener_velas()
-            df = calcular_indicadores(df)
+    try:
+        df = obtener_velas()
+        df = calcular_indicadores(df)
 
-            slope, intercept, tendencia = detectar_tendencia(df)
-            decision, soporte, resistencia, razones = motor_v90(df)
+        slope, intercept, tendencia = detectar_tendencia(df)
+        decision, soporte, resistencia, razones = motor_v90(df)
 
-            # ======================================================
-# VARIABLES FILTRO MAESTRO (FASE 1 - BASE)
-# ======================================================
-
-patron_detectado = False  # Se activará en FASE 2
-zona_valida = False
-tendencia_valida = False
-estructura_valida = False
+        # ======================================================
+        # VARIABLES FILTRO MAESTRO (FASE 1 - BASE)
+        # ======================================================
+        patron_detectado = False  # Se activará en FASE 2
+        zona_valida = False
+        tendencia_valida = False
+        estructura_valida = False
 
 # Validación básica inicial usando tu lógica actual
 precio_actual = df['close'].iloc[-1]
