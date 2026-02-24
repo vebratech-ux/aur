@@ -928,164 +928,6 @@ def risk_management_check():
 
     return True
 
-
-def run_bot():
-    telegram_mensaje("🤖 BOT V90.2 BYBIT REAL INICIADO (SIN PROXY)")
-
-    # ======================================================
-    # INICIALIZAR SISTEMA INSTITUCIONAL SECUNDARIO
-    # ======================================================
-    sistema_institucional = InstitutionalSecondarySystem(telegram_mensaje)
-
-    while True:
-        try:
-            df = obtener_velas()
-            df = calcular_indicadores(df)
-
-            slope, intercept, tendencia = detectar_tendencia(df)
-            decision, soporte, resistencia, razones = motor_v90(df)
-
-            # ======================================================
-            # VARIABLES FILTRO MAESTRO (NISON CONTEXTUAL)
-            # Patrón + Zona + Tendencia + Estructura
-            # ======================================================
-            patron_detectado = False
-            zona_valida = False
-            tendencia_valida = False
-            estructura_valida = False
-
-            precio_actual = df['close'].iloc[-1]
-            atr_actual = df['atr'].iloc[-1]
-
-            # =========================
-            # ZONA (Soporte/Resistencia)
-            # =========================
-            if decision == "Buy" and abs(precio_actual - soporte) < atr_actual:
-                zona_valida = True
-
-            if decision == "Sell" and abs(precio_actual - resistencia) < atr_actual:
-                zona_valida = True
-
-            # =========================
-            # TENDENCIA PREVIA
-            # =========================
-            if decision == "Buy" and tendencia == '📈 ALCISTA':
-                tendencia_valida = True
-
-            if decision == "Sell" and tendencia == '📉 BAJISTA':
-                tendencia_valida = True
-
-            # =========================
-            # ESTRUCTURA (sin BOS, usando slope)
-            # =========================
-            if decision == "Buy" and slope > 0:
-                estructura_valida = True
-
-            if decision == "Sell" and slope < 0:
-                estructura_valida = True
-
-            # =========================
-            # DETECCIÓN PATRÓN NISON REAL (CON CONTEXTO)
-            # =========================
-            patron_detectado, nombre_patron = detectar_patron_nison(
-                df, soporte, resistencia, tendencia
-            )
-
-            if patron_detectado:
-                razones.append(f"Patrón Nison detectado: {nombre_patron}")
-
-            # =========================
-            # FILTRO MAESTRO FINAL
-            # =========================
-            if decision:
-                permitir = filtro_maestro_nison(
-                    patron_detectado,
-                    zona_valida,
-                    tendencia_valida,
-                    estructura_valida
-                )
-
-                if not permitir:
-                    razones.append("Filtro Maestro Nison bloqueó entrada")
-                    decision = None
-
-            # LOG DEL SISTEMA
-            log_colab(df, tendencia, slope, soporte, resistencia, decision, razones)
-
-            # ======================================================
-            # APERTURA DE TRADE (PAPER)
-            # ======================================================
-            if decision and risk_management_check():
-                precio = df['close'].iloc[-1]
-                tiempo_actual = df.index[-1]
-
-                apertura = paper_abrir_posicion(
-                    decision=decision,
-                    precio=precio,
-                    atr=atr_actual,
-                    soporte=soporte,
-                    resistencia=resistencia,
-                    razones=razones,
-                    tiempo=tiempo_actual
-                )
-
-                pnl_flotante = paper_calcular_pnl(precio)
-
-                mensaje = (
-                    f"📌 ENTRADA PAPER {decision}\n"
-                    f"💰 Precio: {precio:.2f}\n"
-                    f"📍 SL: {PAPER_SL:.2f} | TP: {PAPER_TP:.2f}\n"
-                    f"💵 Balance: {PAPER_BALANCE:.2f} USD\n"
-                    f"📈 PnL flotante: {pnl_flotante:.4f} USD\n"
-                    f"🧠 {', '.join(razones)}"
-                )
-
-                telegram_mensaje(mensaje)
-
-                fig = generar_grafico_entrada(
-                    df=df,
-                    decision=decision,
-                    soporte=soporte,
-                    resistencia=resistencia,
-                    slope=slope,
-                    intercept=intercept,
-                    razones=razones
-                )
-
-                if fig:
-                    telegram_grafico(fig)
-                    plt.close(fig)
-
-            # ======================================================
-            # GESTIÓN DE POSICIÓN ABIERTA
-            # ======================================================
-            if PAPER_POSICION_ACTIVA is not None:
-                cierre = paper_revisar_sl_tp(df)
-
-                if cierre:
-                    mensaje_cierre = (
-                        f"📌 CIERRE PAPER {cierre['decision']} ({cierre['motivo']})\n"
-                        f"💰 PnL: {cierre['pnl']:.4f} USD\n"
-                        f"💵 Balance: {cierre['balance']:.2f} USD"
-                    )
-                    telegram_mensaje(mensaje_cierre)
-
-            time.sleep(SLEEP_SECONDS)
-
-        except Exception as e:
-            print(f"🚨 ERROR: {e}")
-            telegram_mensaje(f"🚨 ERROR BOT: {e}")
-            time.sleep(60)
-
-# ======================================================
-# START
-# ======================================================
-
-if __name__ == '__main__':
-    run_bot()
-
-
-
 # ======================================================
 # SISTEMA SECUNDARIO INSTITUCIONAL (NO REEMPLAZA EL SISTEMA PRINCIPAL)
 # ======================================================
@@ -1287,3 +1129,162 @@ class InstitutionalSecondarySystem:
 # ======================================================
 # FIN DEL MÓDULO INSTITUCIONAL SECUNDARIO
 # ======================================================
+
+def run_bot():
+    telegram_mensaje("🤖 BOT V90.2 BYBIT REAL INICIADO (SIN PROXY)")
+
+    # ======================================================
+    # INICIALIZAR SISTEMA INSTITUCIONAL SECUNDARIO
+    # ======================================================
+    sistema_institucional = InstitutionalSecondarySystem(telegram_mensaje)
+
+    while True:
+        try:
+            df = obtener_velas()
+            df = calcular_indicadores(df)
+
+            slope, intercept, tendencia = detectar_tendencia(df)
+            decision, soporte, resistencia, razones = motor_v90(df)
+
+            # ======================================================
+            # VARIABLES FILTRO MAESTRO (NISON CONTEXTUAL)
+            # Patrón + Zona + Tendencia + Estructura
+            # ======================================================
+            patron_detectado = False
+            zona_valida = False
+            tendencia_valida = False
+            estructura_valida = False
+
+            precio_actual = df['close'].iloc[-1]
+            atr_actual = df['atr'].iloc[-1]
+
+            # =========================
+            # ZONA (Soporte/Resistencia)
+            # =========================
+            if decision == "Buy" and abs(precio_actual - soporte) < atr_actual:
+                zona_valida = True
+
+            if decision == "Sell" and abs(precio_actual - resistencia) < atr_actual:
+                zona_valida = True
+
+            # =========================
+            # TENDENCIA PREVIA
+            # =========================
+            if decision == "Buy" and tendencia == '📈 ALCISTA':
+                tendencia_valida = True
+
+            if decision == "Sell" and tendencia == '📉 BAJISTA':
+                tendencia_valida = True
+
+            # =========================
+            # ESTRUCTURA (sin BOS, usando slope)
+            # =========================
+            if decision == "Buy" and slope > 0:
+                estructura_valida = True
+
+            if decision == "Sell" and slope < 0:
+                estructura_valida = True
+
+            # =========================
+            # DETECCIÓN PATRÓN NISON REAL (CON CONTEXTO)
+            # =========================
+            patron_detectado, nombre_patron = detectar_patron_nison(
+                df, soporte, resistencia, tendencia
+            )
+
+            if patron_detectado:
+                razones.append(f"Patrón Nison detectado: {nombre_patron}")
+
+            # =========================
+            # FILTRO MAESTRO FINAL
+            # =========================
+            if decision:
+                permitir = filtro_maestro_nison(
+                    patron_detectado,
+                    zona_valida,
+                    tendencia_valida,
+                    estructura_valida
+                )
+
+                if not permitir:
+                    razones.append("Filtro Maestro Nison bloqueó entrada")
+                    decision = None
+
+            # LOG DEL SISTEMA
+            log_colab(df, tendencia, slope, soporte, resistencia, decision, razones)
+
+            # ======================================================
+            # APERTURA DE TRADE (PAPER)
+            # ======================================================
+            if decision and risk_management_check():
+                precio = df['close'].iloc[-1]
+                tiempo_actual = df.index[-1]
+
+                apertura = paper_abrir_posicion(
+                    decision=decision,
+                    precio=precio,
+                    atr=atr_actual,
+                    soporte=soporte,
+                    resistencia=resistencia,
+                    razones=razones,
+                    tiempo=tiempo_actual
+                )
+
+                pnl_flotante = paper_calcular_pnl(precio)
+
+                mensaje = (
+                    f"📌 ENTRADA PAPER {decision}\n"
+                    f"💰 Precio: {precio:.2f}\n"
+                    f"📍 SL: {PAPER_SL:.2f} | TP: {PAPER_TP:.2f}\n"
+                    f"💵 Balance: {PAPER_BALANCE:.2f} USD\n"
+                    f"📈 PnL flotante: {pnl_flotante:.4f} USD\n"
+                    f"🧠 {', '.join(razones)}"
+                )
+
+                telegram_mensaje(mensaje)
+
+                fig = generar_grafico_entrada(
+                    df=df,
+                    decision=decision,
+                    soporte=soporte,
+                    resistencia=resistencia,
+                    slope=slope,
+                    intercept=intercept,
+                    razones=razones
+                )
+
+                if fig:
+                    telegram_grafico(fig)
+                    plt.close(fig)
+
+            # ======================================================
+            # GESTIÓN DE POSICIÓN ABIERTA
+            # ======================================================
+            if PAPER_POSICION_ACTIVA is not None:
+                cierre = paper_revisar_sl_tp(df)
+
+                if cierre:
+                    mensaje_cierre = (
+                        f"📌 CIERRE PAPER {cierre['decision']} ({cierre['motivo']})\n"
+                        f"💰 PnL: {cierre['pnl']:.4f} USD\n"
+                        f"💵 Balance: {cierre['balance']:.2f} USD"
+                    )
+                    telegram_mensaje(mensaje_cierre)
+
+            time.sleep(SLEEP_SECONDS)
+
+        except Exception as e:
+            print(f"🚨 ERROR: {e}")
+            telegram_mensaje(f"🚨 ERROR BOT: {e}")
+            time.sleep(60)
+
+# ======================================================
+# START
+# ======================================================
+
+if __name__ == '__main__':
+    run_bot()
+
+
+
+
