@@ -932,80 +932,92 @@ def risk_management_check():
 def run_bot():
     telegram_mensaje("🤖 BOT V90.2 BYBIT REAL INICIADO (SIN PROXY)")
 
- # ======================================================
+    # ======================================================
     # INICIALIZAR SISTEMA INSTITUCIONAL SECUNDARIO
     # ======================================================
     sistema_institucional = InstitutionalSecondarySystem(telegram_mensaje)
 
     while True:
-    try:
-        df = obtener_velas()
-        df = calcular_indicadores(df)
+        try:
+            df = obtener_velas()
+            df = calcular_indicadores(df)
 
-        slope, intercept, tendencia = detectar_tendencia(df)
-        decision, soporte, resistencia, razones = motor_v90(df)
+            slope, intercept, tendencia = detectar_tendencia(df)
+            decision, soporte, resistencia, razones = motor_v90(df)
 
-        # ======================================================
-        # VARIABLES FILTRO MAESTRO (FASE 1 - BASE)
-        # ======================================================
-        patron_detectado = False  # Se activará en FASE 2
-        zona_valida = False
-        tendencia_valida = False
-        estructura_valida = False
+            # ======================================================
+            # VARIABLES FILTRO MAESTRO (NISON CONTEXTUAL)
+            # Patrón + Zona + Tendencia + Estructura
+            # ======================================================
+            patron_detectado = False
+            zona_valida = False
+            tendencia_valida = False
+            estructura_valida = False
 
-# Validación básica inicial usando tu lógica actual
-precio_actual = df['close'].iloc[-1]
-atr_actual = df['atr'].iloc[-1]
+            precio_actual = df['close'].iloc[-1]
+            atr_actual = df['atr'].iloc[-1]
 
-# Zona válida (precio cerca de soporte o resistencia)
-if decision == "Buy" and abs(precio_actual - soporte) < atr_actual:
-    zona_valida = True
+            # =========================
+            # ZONA (Soporte/Resistencia)
+            # =========================
+            if decision == "Buy" and abs(precio_actual - soporte) < atr_actual:
+                zona_valida = True
 
-if decision == "Sell" and abs(precio_actual - resistencia) < atr_actual:
-    zona_valida = True
+            if decision == "Sell" and abs(precio_actual - resistencia) < atr_actual:
+                zona_valida = True
 
-# Tendencia válida
-if decision == "Buy" and tendencia == '📈 ALCISTA':
-    tendencia_valida = True
+            # =========================
+            # TENDENCIA PREVIA
+            # =========================
+            if decision == "Buy" and tendencia == '📈 ALCISTA':
+                tendencia_valida = True
 
-if decision == "Sell" and tendencia == '📉 BAJISTA':
-    tendencia_valida = True
+            if decision == "Sell" and tendencia == '📉 BAJISTA':
+                tendencia_valida = True
 
-# Estructura válida (por ahora usamos slope como proxy)
-if decision == "Buy" and slope > 0:
-    estructura_valida = True
+            # =========================
+            # ESTRUCTURA (sin BOS, usando slope)
+            # =========================
+            if decision == "Buy" and slope > 0:
+                estructura_valida = True
 
-if decision == "Sell" and slope < 0:
-    estructura_valida = True
+            if decision == "Sell" and slope < 0:
+                estructura_valida = True
 
-# Detectar patrón Nison real con contexto
-patron_detectado, nombre_patron = detectar_patron_nison(df, soporte, resistencia, tendencia)
-if patron_detectado:
-    razones.append(f"Patrón Nison detectado: {nombre_patron}")
+            # =========================
+            # DETECCIÓN PATRÓN NISON REAL (CON CONTEXTO)
+            # =========================
+            patron_detectado, nombre_patron = detectar_patron_nison(
+                df, soporte, resistencia, tendencia
+            )
 
-# Aplicar filtro maestro
-if decision:
-    permitir = filtro_maestro_nison(
-        patron_detectado,
-        zona_valida,
-        tendencia_valida,
-        estructura_valida
-    )
+            if patron_detectado:
+                razones.append(f"Patrón Nison detectado: {nombre_patron}")
 
-    if not permitir:
-        razones.append("Filtro Maestro bloqueó entrada")
-        decision = None
+            # =========================
+            # FILTRO MAESTRO FINAL
+            # =========================
+            if decision:
+                permitir = filtro_maestro_nison(
+                    patron_detectado,
+                    zona_valida,
+                    tendencia_valida,
+                    estructura_valida
+                )
 
+                if not permitir:
+                    razones.append("Filtro Maestro Nison bloqueó entrada")
+                    decision = None
+
+            # LOG DEL SISTEMA
             log_colab(df, tendencia, slope, soporte, resistencia, decision, razones)
 
+            # ======================================================
+            # APERTURA DE TRADE (PAPER)
+            # ======================================================
             if decision and risk_management_check():
                 precio = df['close'].iloc[-1]
-                atr_actual = df['atr'].iloc[-1]
                 tiempo_actual = df.index[-1]
-
-                # ======================================================
-                # ABRIR POSICIÓN PAPER
-                # ======================================================
 
                 apertura = paper_abrir_posicion(
                     decision=decision,
@@ -1023,18 +1035,12 @@ if decision:
                     f"📌 ENTRADA PAPER {decision}\n"
                     f"💰 Precio: {precio:.2f}\n"
                     f"📍 SL: {PAPER_SL:.2f} | TP: {PAPER_TP:.2f}\n"
-                    f"📦 Size USD: {PAPER_SIZE_USD:.2f} | Size BTC: {PAPER_SIZE_BTC:.6f}\n"
                     f"💵 Balance: {PAPER_BALANCE:.2f} USD\n"
                     f"📈 PnL flotante: {pnl_flotante:.4f} USD\n"
-                    f"📊 PnL Global: {PAPER_PNL_GLOBAL:.4f} USD\n"
                     f"🧠 {', '.join(razones)}"
                 )
 
                 telegram_mensaje(mensaje)
-
-                # ======================================================
-                # GENERAR Y ENVIAR GRÁFICO A TELEGRAM AL ENTRAR
-                # ======================================================
 
                 fig = generar_grafico_entrada(
                     df=df,
@@ -1050,27 +1056,18 @@ if decision:
                     telegram_grafico(fig)
                     plt.close(fig)
 
-
             # ======================================================
-            # REVISAR STOP LOSS / TAKE PROFIT PAPER
+            # GESTIÓN DE POSICIÓN ABIERTA
             # ======================================================
-
             if PAPER_POSICION_ACTIVA is not None:
-                precio_actual = df['close'].iloc[-1]
                 cierre = paper_revisar_sl_tp(df)
 
                 if cierre:
                     mensaje_cierre = (
                         f"📌 CIERRE PAPER {cierre['decision']} ({cierre['motivo']})\n"
-                        f"📍 Entrada: {cierre['entrada']:.2f}\n"
-                        f"📍 Salida: {cierre['salida']:.2f}\n"
-                        f"💰 PnL Trade: {cierre['pnl']:.4f} USD\n"
-                        f"💵 Balance: {cierre['balance']:.2f} USD\n"
-                        f"📊 PnL Global: {PAPER_PNL_GLOBAL:.4f} USD\n"
-                        f"🏆 Wins: {PAPER_WIN} | ❌ Loss: {PAPER_LOSS}\n"
-                        f"📉 Max Drawdown: -{PAPER_MAX_DRAWDOWN:.4f} USD"
+                        f"💰 PnL: {cierre['pnl']:.4f} USD\n"
+                        f"💵 Balance: {cierre['balance']:.2f} USD"
                     )
-
                     telegram_mensaje(mensaje_cierre)
 
             time.sleep(SLEEP_SECONDS)
