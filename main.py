@@ -297,6 +297,128 @@ def motor_v90(df):
     razones.append('Sin confluencia válida')
     return None, soporte, resistencia, razones
 
+
+# ======================================================
+# PATRONES DE VELAS NISON (CON CONTEXTO REAL)
+# Patrón + Soporte/Resistencia + Tendencia previa + Confirmación
+# ======================================================
+
+def tendencia_previa(df, velas=5):
+    if len(df) < velas + 1:
+        return None
+    closes = df['close'].iloc[-(velas+1):-1]
+    if closes.iloc[-1] > closes.iloc[0]:
+        return "alcista"
+    elif closes.iloc[-1] < closes.iloc[0]:
+        return "bajista"
+    return "lateral"
+
+def es_hammer(candle):
+    cuerpo = abs(candle['close'] - candle['open'])
+    rango = candle['high'] - candle['low']
+    mecha_inf = min(candle['open'], candle['close']) - candle['low']
+    mecha_sup = candle['high'] - max(candle['open'], candle['close'])
+    return (mecha_inf > cuerpo * 2) and (mecha_sup < cuerpo) and (cuerpo / rango < 0.4)
+
+def es_shooting_star(candle):
+    cuerpo = abs(candle['close'] - candle['open'])
+    rango = candle['high'] - candle['low']
+    mecha_sup = candle['high'] - max(candle['open'], candle['close'])
+    mecha_inf = min(candle['open'], candle['close']) - candle['low']
+    return (mecha_sup > cuerpo * 2) and (mecha_inf < cuerpo) and (cuerpo / rango < 0.4)
+
+def es_bullish_engulfing(prev, curr):
+    return (prev['close'] < prev['open'] and
+            curr['close'] > curr['open'] and
+            curr['open'] < prev['close'] and
+            curr['close'] > prev['open'])
+
+def es_bearish_engulfing(prev, curr):
+    return (prev['close'] > prev['open'] and
+            curr['close'] < curr['open'] and
+            curr['open'] > prev['close'] and
+            curr['close'] < prev['open'])
+
+def es_piercing(prev, curr):
+    mitad = (prev['open'] + prev['close']) / 2
+    return (prev['close'] < prev['open'] and
+            curr['close'] > curr['open'] and
+            curr['close'] > mitad)
+
+def es_dark_cloud(prev, curr):
+    mitad = (prev['open'] + prev['close']) / 2
+    return (prev['close'] > prev['open'] and
+            curr['close'] < curr['open'] and
+            curr['close'] < mitad)
+
+def es_harami(prev, curr):
+    return (min(curr['open'], curr['close']) > min(prev['open'], prev['close']) and
+            max(curr['open'], curr['close']) < max(prev['open'], prev['close']))
+
+def detectar_patron_nison(df, soporte, resistencia, tendencia):
+    if len(df) < 3:
+        return False, None
+
+    prev = df.iloc[-2]
+    curr = df.iloc[-1]
+    prev2 = df.iloc[-3]
+
+    t_prev = tendencia_previa(df, 5)
+    confirmacion = curr['close'] > prev['close'] if tendencia == '📈 ALCISTA' else curr['close'] < prev['close']
+
+    # Contexto Nison: zona + tendencia previa + confirmación
+    cerca_soporte = abs(curr['close'] - soporte) < df['atr'].iloc[-1]
+    cerca_resistencia = abs(curr['close'] - resistencia) < df['atr'].iloc[-1]
+
+    # Hammer (reversión alcista)
+    if es_hammer(curr) and t_prev == "bajista" and cerca_soporte and confirmacion:
+        return True, "Hammer"
+
+    # Shooting Star (reversión bajista)
+    if es_shooting_star(curr) and t_prev == "alcista" and cerca_resistencia and confirmacion:
+        return True, "Shooting Star"
+
+    # Engulfing
+    if es_bullish_engulfing(prev, curr) and t_prev == "bajista" and cerca_soporte and confirmacion:
+        return True, "Bullish Engulfing"
+
+    if es_bearish_engulfing(prev, curr) and t_prev == "alcista" and cerca_resistencia and confirmacion:
+        return True, "Bearish Engulfing"
+
+    # Piercing / Dark Cloud
+    if es_piercing(prev, curr) and t_prev == "bajista" and cerca_soporte and confirmacion:
+        return True, "Piercing Pattern"
+
+    if es_dark_cloud(prev, curr) and t_prev == "alcista" and cerca_resistencia and confirmacion:
+        return True, "Dark Cloud Cover"
+
+    # Harami (continuación / reversión contextual)
+    if es_harami(prev, curr) and confirmacion:
+        return True, "Harami"
+
+    return False, None
+
+# ======================================================
+# FILTRO MAESTRO NISON - FASE 1 (ARQUITECTURA BASE)
+# ======================================================
+
+def filtro_maestro_nison(
+    patron_detectado,
+    zona_valida,
+    tendencia_valida,
+    estructura_valida
+):
+    """
+    Entrada permitida SOLO si se cumplen:
+
+    Patrón + Zona + Tendencia + Estructura (BOS)
+    """
+
+    if patron_detectado and zona_valida and tendencia_valida and estructura_valida:
+        return True
+
+    return False
+
 # ======================================================
 # GRÁFICO VELAS JAPONESAS + SOPORTE/RESISTENCIA + TENDENCIA
 # ======================================================
@@ -810,6 +932,11 @@ def risk_management_check():
 def run_bot():
     telegram_mensaje("🤖 BOT V90.2 BYBIT REAL INICIADO (SIN PROXY)")
 
+ # ======================================================
+    # INICIALIZAR SISTEMA INSTITUCIONAL SECUNDARIO
+    # ======================================================
+    sistema_institucional = InstitutionalSecondarySystem(telegram_mensaje)
+
     while True:
         try:
             df = obtener_velas()
@@ -817,6 +944,58 @@ def run_bot():
 
             slope, intercept, tendencia = detectar_tendencia(df)
             decision, soporte, resistencia, razones = motor_v90(df)
+
+            # ======================================================
+# VARIABLES FILTRO MAESTRO (FASE 1 - BASE)
+# ======================================================
+
+patron_detectado = False  # Se activará en FASE 2
+zona_valida = False
+tendencia_valida = False
+estructura_valida = False
+
+# Validación básica inicial usando tu lógica actual
+precio_actual = df['close'].iloc[-1]
+atr_actual = df['atr'].iloc[-1]
+
+# Zona válida (precio cerca de soporte o resistencia)
+if decision == "Buy" and abs(precio_actual - soporte) < atr_actual:
+    zona_valida = True
+
+if decision == "Sell" and abs(precio_actual - resistencia) < atr_actual:
+    zona_valida = True
+
+# Tendencia válida
+if decision == "Buy" and tendencia == '📈 ALCISTA':
+    tendencia_valida = True
+
+if decision == "Sell" and tendencia == '📉 BAJISTA':
+    tendencia_valida = True
+
+# Estructura válida (por ahora usamos slope como proxy)
+if decision == "Buy" and slope > 0:
+    estructura_valida = True
+
+if decision == "Sell" and slope < 0:
+    estructura_valida = True
+
+# Detectar patrón Nison real con contexto
+patron_detectado, nombre_patron = detectar_patron_nison(df, soporte, resistencia, tendencia)
+if patron_detectado:
+    razones.append(f"Patrón Nison detectado: {nombre_patron}")
+
+# Aplicar filtro maestro
+if decision:
+    permitir = filtro_maestro_nison(
+        patron_detectado,
+        zona_valida,
+        tendencia_valida,
+        estructura_valida
+    )
+
+    if not permitir:
+        razones.append("Filtro Maestro bloqueó entrada")
+        decision = None
 
             log_colab(df, tendencia, slope, soporte, resistencia, decision, razones)
 
