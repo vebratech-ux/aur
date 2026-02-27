@@ -1288,3 +1288,77 @@ if __name__ == '__main__':
 
 
 
+
+
+# ======================================================
+# NUEVA GESTIÓN DINÁMICA DE TRADE (ATR TRAILING SYSTEM)
+# ======================================================
+# Entrada → igual
+# TP1 → 1 ATR (50%)
+# Break Even → automático
+# Trailing → 1.2 ATR
+# Sin TP final
+
+TRAILING_ACTIVO = False
+MAX_PRECIO_ALCANZADO = None
+MIN_PRECIO_ALCANZADO = None
+
+ATR_MULT_SL = 1.1
+ATR_MULT_TP1 = 1.0
+ATR_TRAILING = 1.2
+BE_BUFFER = 0.15
+
+def activar_trailing(precio_actual, direccion):
+    global TRAILING_ACTIVO, MAX_PRECIO_ALCANZADO, MIN_PRECIO_ALCANZADO
+    
+    TRAILING_ACTIVO = True
+    
+    if direccion == "LONG":
+        MAX_PRECIO_ALCANZADO = precio_actual
+    else:
+        MIN_PRECIO_ALCANZADO = precio_actual
+
+
+def actualizar_trailing(precio_actual, atr, direccion):
+    global MAX_PRECIO_ALCANZADO, MIN_PRECIO_ALCANZADO
+
+    if not TRAILING_ACTIVO:
+        return None
+
+    if direccion == "LONG":
+        if MAX_PRECIO_ALCANZADO is None or precio_actual > MAX_PRECIO_ALCANZADO:
+            MAX_PRECIO_ALCANZADO = precio_actual
+
+        trailing_sl = MAX_PRECIO_ALCANZADO - (ATR_TRAILING * atr)
+        return trailing_sl
+
+    elif direccion == "SHORT":
+        if MIN_PRECIO_ALCANZADO is None or precio_actual < MIN_PRECIO_ALCANZADO:
+            MIN_PRECIO_ALCANZADO = precio_actual
+
+        trailing_sl = MIN_PRECIO_ALCANZADO + (ATR_TRAILING * atr)
+        return trailing_sl
+
+
+def ejecutar_tp1_y_break_even(precio_entrada, atr, direccion):
+    """
+    Cierra 50% y mueve SL a Break Even + buffer.
+    """
+    if direccion == "LONG":
+        nuevo_sl = precio_entrada + (BE_BUFFER * atr)
+    else:
+        nuevo_sl = precio_entrada - (BE_BUFFER * atr)
+
+    return nuevo_sl
+
+
+def reset_trailing():
+    global TRAILING_ACTIVO, MAX_PRECIO_ALCANZADO, MIN_PRECIO_ALCANZADO
+
+    TRAILING_ACTIVO = False
+    MAX_PRECIO_ALCANZADO = None
+    MIN_PRECIO_ALCANZADO = None
+
+# ======================================================
+# FIN GESTIÓN DINÁMICA ATR
+# ======================================================
