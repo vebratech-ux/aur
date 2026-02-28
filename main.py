@@ -34,10 +34,10 @@ MOSTRAR_ATR = False
 # ======================================================
 
 SYMBOL = "BTCUSDT"
-INTERVAL = "5"  # 5 minutos
-RISK_PER_TRADE = 0.0025   # 0.25%
+INTERVAL = "1"  # 1 minuto
+RISK_PER_TRADE = 0.0025
 LEVERAGE = 1
-SLEEP_SECONDS = 300  # 5 minutos
+SLEEP_SECONDS = 60  # 1 minuto
 
 # ======================================================
 # PAPER TRADING (SIMULACIÓN)
@@ -252,15 +252,15 @@ def calcular_indicadores(df):
 # ======================================================
 
 def detectar_soportes_resistencias(df):
-    soporte = df['close'].rolling(50).min().iloc[-1]
-    resistencia = df['close'].rolling(50).max().iloc[-1]
+    soporte = df['close'].rolling(200).min().iloc[-1]
+    resistencia = df['close'].rolling(200).max().iloc[-1]
     return soporte, resistencia
 
 # ======================================================
 # TENDENCIA
 # ======================================================
 
-def detectar_tendencia(df, ventana=80):
+def detectar_tendencia(df, ventana=240):
     y = df['close'].values[-ventana:]
     x = np.arange(len(y))
     slope, intercept, r, _, _ = linregress(x, y)
