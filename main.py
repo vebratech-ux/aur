@@ -787,101 +787,70 @@ def paper_calcular_pnl(precio_actual):
 
 
 def paper_revisar_sl_tp(df):
-    global PAPER_SL, PAPER_TP1, PAPER_TP2
-    global PAPER_PRECIO_ENTRADA, PAPER_DECISION_ACTIVA
-    global PAPER_POSICION_ACTIVA, PAPER_BALANCE, PAPER_PNL_GLOBAL
-    global PAPER_WIN, PAPER_LOSS, PAPER_TRADES_TOTALES
-    global PAPER_BALANCE_MAX, PAPER_MAX_DRAWDOWN
-    global PAPER_ULTIMO_RESULTADO, PAPER_ULTIMO_PNL
-    global PAPER_SIZE_BTC, PAPER_SIZE_BTC_RESTANTE
-    global PAPER_TP1_EJECUTADO, PAPER_CONSECUTIVE_LOSSES
-    global PAPER_PAUSE_UNTIL
+    global PAPER_POSICION_ACTIVA, PAPER_BALANCE, PAPER_PNL_GLOBAL, PAPER_TRADES
+    global TRAILING_ACTIVO, MAX_PRECIO_ALCANZADO, MIN_PRECIO_ALCANZADO
 
     if PAPER_POSICION_ACTIVA is None:
         return None
 
-    high = df['high'].iloc[-1]
-    low = df['low'].iloc[-1]
+    precio_actual = df['close'].iloc[-1]
+    atr_actual = df['atr'].iloc[-1]
+    pos = PAPER_POSICION_ACTIVA
+    direccion = pos['direccion']
+    
+    # 1. ACTUALIZAR TRAILING SI ESTÁ ACTIVO
+    if TRAILING_ACTIVO:
+        nuevo_sl = actualizar_trailing(precio_actual, atr_actual, direccion)
+        if nuevo_sl is not None:
+            # Solo movemos el SL si es a nuestro favor (asegurar ganancia)
+            if direccion == "LONG" and nuevo_sl > pos['sl']:
+                pos['sl'] = nuevo_sl
+            elif direccion == "SHORT" and nuevo_sl < pos['sl']:
+                pos['sl'] = nuevo_sl
 
-    cerrar_total = False
-    motivo = None
+    # 2. LÓGICA DE SALIDA POR STOP LOSS (Dinámico o Fijo)
+    hit_sl = False
+    if direccion == "LONG" and precio_actual <= pos['sl']: hit_sl = True
+    if direccion == "SHORT" and precio_actual >= pos['sl']: hit_sl = True
 
-    # ===== BUY =====
-    if PAPER_POSICION_ACTIVA == "Buy":
-        if (not PAPER_TP1_EJECUTADO) and high >= PAPER_TP1:
-            pnl_parcial = (PAPER_TP1 - PAPER_PRECIO_ENTRADA) * (PAPER_SIZE_BTC / 2)
-            PAPER_BALANCE += pnl_parcial
-            PAPER_PNL_GLOBAL += pnl_parcial
-            PAPER_SIZE_BTC_RESTANTE = PAPER_SIZE_BTC / 2
-            PAPER_TP1_EJECUTADO = True
-            PAPER_SL = PAPER_PRECIO_ENTRADA
-            telegram_mensaje("🎯 TP1 alcanzado - 50% cerrado y SL a BE")
-
-        if low <= PAPER_SL:
-            cerrar_total = True
-            motivo = "SL"
-        elif high >= PAPER_TP2:
-            cerrar_total = True
-            motivo = "TP2"
-
-    # ===== SELL =====
-    elif PAPER_POSICION_ACTIVA == "Sell":
-        if (not PAPER_TP1_EJECUTADO) and low <= PAPER_TP1:
-            pnl_parcial = (PAPER_PRECIO_ENTRADA - PAPER_TP1) * (PAPER_SIZE_BTC / 2)
-            PAPER_BALANCE += pnl_parcial
-            PAPER_PNL_GLOBAL += pnl_parcial
-            PAPER_SIZE_BTC_RESTANTE = PAPER_SIZE_BTC / 2
-            PAPER_TP1_EJECUTADO = True
-            PAPER_SL = PAPER_PRECIO_ENTRADA
-            telegram_mensaje("🎯 TP1 alcanzado - 50% cerrado y SL a BE")
-
-        if high >= PAPER_SL:
-            cerrar_total = True
-            motivo = "SL"
-        elif low <= PAPER_TP2:
-            cerrar_total = True
-            motivo = "TP2"
-
-    # ===== CIERRE TOTAL (DENTRO DE LA FUNCIÓN) =====
-    if cerrar_total:
-        if PAPER_POSICION_ACTIVA == "Buy":
-            precio_salida = PAPER_TP2 if motivo == "TP2" else PAPER_SL
-            pnl_final = (precio_salida - PAPER_PRECIO_ENTRADA) * PAPER_SIZE_BTC_RESTANTE
-        else:
-            precio_salida = PAPER_TP2 if motivo == "TP2" else PAPER_SL
-            pnl_final = (PAPER_PRECIO_ENTRADA - precio_salida) * PAPER_SIZE_BTC_RESTANTE
-
-        decision_guardada = PAPER_DECISION_ACTIVA
-        entrada_guardada = PAPER_PRECIO_ENTRADA
-        balance_final = PAPER_BALANCE + pnl_final
-
-        PAPER_BALANCE += pnl_final
-        PAPER_PNL_GLOBAL += pnl_final
-        PAPER_TRADES_TOTALES += 1
-        PAPER_ULTIMO_PNL = pnl_final
-        PAPER_ULTIMO_RESULTADO = motivo
-
-        # RESET
-        PAPER_POSICION_ACTIVA = None
-        PAPER_DECISION_ACTIVA = None
-        PAPER_PRECIO_ENTRADA = None
-        PAPER_SL = None
-        PAPER_TP1 = None
-        PAPER_TP2 = None
-        PAPER_SIZE_BTC = 0.0
-        PAPER_SIZE_BTC_RESTANTE = 0.0
-        PAPER_TP1_EJECUTADO = False
-
-        telegram_mensaje(f"📤 Trade cerrado por {motivo} | PnL: {pnl_final:.2f} USDT")
-
-        return {
-            "decision": decision_guardada,
-            "motivo": motivo,
-            "entrada": entrada_guardada,
-            "salida": precio_salida,
-            "pnl": pnl_final,
-            "balance": balance_final
+    if hit_sl:
+        pnl = (precio_actual - pos['entrada']) * pos['cantidad'] if direccion == "LONG" else (pos['entrada'] - precio_actual) * pos['cantidad']
+        PAPER_BALANCE += (pos['cantidad'] * precio_actual) + pnl 
+        PAPER_PNL_GLOBAL += pnl
+        
+        res = {
+            "decision": direccion, 
+            "motivo": "STOP_LOSS_TRAILED" if TRAILING_ACTIVO else "STOP_LOSS", 
+            "pnl": pnl, 
+            "balance": PAPER_BALANCE, 
+            "entrada": pos['entrada'], 
+            "salida": precio_actual
         }
+        
+        # Reset de variables para el siguiente trade
+        PAPER_POSICION_ACTIVA = None
+        TRAILING_ACTIVO = False 
+        MAX_PRECIO_ALCANZADO = None
+        MIN_PRECIO_ALCANZADO = None
+        return res
+
+    # 3. LÓGICA DE TP1 Y ACTIVACIÓN DE TRAILING (No cerramos todo, activamos rastreo)
+    hit_tp1 = False
+    if direccion == "LONG" and precio_actual >= pos['tp1']: hit_tp1 = True
+    if direccion == "SHORT" and precio_actual <= pos['tp1']: hit_tp1 = True
+
+    if hit_tp1 and not TRAILING_ACTIVO:
+        # Cobramos la mitad del trade para asegurar
+        pnl_mitad = (precio_actual - pos['entrada']) * (pos['cantidad'] / 2) if direccion == "LONG" else (pos['entrada'] - precio_actual) * (pos['cantidad'] / 2)
+        PAPER_PNL_GLOBAL += pnl_mitad
+        
+        # Movemos SL a Break Even (BE) y activamos Trailing para la otra mitad
+        pos['sl'] = ejecutar_tp1_y_break_even(pos['entrada'], atr_actual, direccion)
+        activar_trailing(precio_actual, direccion)
+        
+        telegram_mensaje(f"💰 TP1 ALCANZADO: Mitad cerrada. Trailing Stop activado para perseguir la tendencia 🚀")
+        # No retornamos resultado de cierre para que la posición siga viva en el loop
+        return None 
 
     return None
 # ======================================================
