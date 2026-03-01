@@ -1231,49 +1231,53 @@ def run_bot():
             # ======================================================
             if PAPER_POSICION_ACTIVA is not None:
                 cierre = paper_revisar_sl_tp(df)
-
                 if cierre:
-                    # 1. Definir color y etiqueta
-                es_win = cierre['pnl'] > 0
-                etiqueta = "WIN 💰" if es_win else "LOSS 🔴"
-                color_plt = "green" if es_win else "red"
-                
-                # 2. Mensaje de texto
-                msg = (
-                    f"✅ TRADE FINALIZADO: {etiqueta}\n"
-                    f"📝 Motivo: {cierre['motivo']}\n"
-                    f"💵 PnL: {cierre['pnl']:.4f} USD\n"
-                    f"💰 Balance: {cierre['balance']:.2f} USD"
-                )
-                telegram_mensaje(msg)
-                
-                # 3. GENERAR GRÁFICO DE CIERRE CON ETIQUETA
-                try:
-                    # Calculamos una regresión rápida para el visual
-                    slope, intercept, r, p, std = linregress(np.arange(len(df['close'][-20:])), df['close'][-20:])
-                    
-                    fig = generar_grafico_entrada(
-                        df, cierre['decision'], 
-                        df['low'].min(), df['high'].max(), 
-                        slope, intercept, 
-                        razones=[f"RESULTADO: {etiqueta}", f"Salida: {cierre['salida']:.2f}"]
+                    # 1. Determinar si es Ganancia o Pérdida
+                    es_win = cierre['pnl'] > 0
+                    resultado_texto = "WIN 💰" if es_win else "LOSS 🔴"
+                    color_res = "green" if es_win else "red"
+
+                    # 2. Mensaje de texto a Telegram
+                    mensaje_final = (
+                        f"✅ {resultado_texto} | TRADE CERRADO\n"
+                        f"📝 Motivo: {cierre['motivo']}\n"
+                        f"💵 PnL: {cierre['pnl']:.4f} USD\n"
+                        f"💰 Balance: {cierre['balance']:.2f} USD"
                     )
-                    
-                    # Dibujar la etiqueta de WIN/LOSS en el gráfico
-                    ax = fig.axes[0]
-                    ax.annotate(
-                        f"{etiqueta}\n{cierre['salida']:.2f}",
-                        xy=(len(df)-1, cierre['salida']),
-                        xytext=(len(df)-10, cierre['salida'] * (1.002 if es_win else 0.998)),
-                        arrowprops=dict(facecolor=color_plt, shrink=0.05),
-                        bbox=dict(boxstyle="round,pad=0.3", fc=color_plt, ec="w", lw=1, alpha=0.8),
-                        color="white", fontweight="bold", fontsize=10
-                    )
-                    
-                    telegram_grafico(fig)
-                    plt.close(fig) # Importante para no colapsar la RAM
-                except Exception as e_graf:
-                    print(f"Error en gráfico de cierre: {e_graf}")
+                    telegram_mensaje(mensaje_final)
+
+                    # 3. Generar Gráfico de Cierre con Etiqueta
+                    try:
+                        # Calculamos la regresión actual para que el gráfico no falle
+                        y = df['close'].values[-20:]
+                        x = np.arange(len(y))
+                        res_lin = linregress(x, y)
+                        
+                        fig_cierre = generar_grafico_entrada(
+                            df=df,
+                            decision=cierre['decision'],
+                            soporte=df['low'].min(),
+                            resistencia=df['high'].max(),
+                            slope=res_lin.slope,
+                            intercept=res_lin.intercept,
+                            razones=[f"RESULTADO: {resultado_texto}", f"PNL: {cierre['pnl']:.2f}"]
+                        )
+
+                        # Añadir la etiqueta visual de WIN o LOSS directamente en el gráfico
+                        ax = fig_cierre.axes[0]
+                        ax.annotate(
+                            f"{resultado_texto}\n{cierre['salida']:.2f}",
+                            xy=(len(df)-1, cierre['salida']),
+                            xytext=(len(df)-15, cierre['salida'] * (1.002 if es_win else 0.998)),
+                            arrowprops=dict(facecolor=color_res, shrink=0.05),
+                            bbox=dict(boxstyle="round,pad=0.3", fc=color_res, ec="w", lw=1, alpha=0.8),
+                            color="white", fontweight="bold", fontsize=10
+                        )
+
+                        telegram_grafico(fig_cierre)
+                        plt.close(fig_cierre) # Limpieza de memoria
+                    except Exception as e_graf:
+                        print(f"Error gráfico de cierre: {e_graf}")
 
                     # ====== PRO EXIT GRAPHIC SYSTEM ======
                     try:
