@@ -1263,59 +1263,46 @@ def run_bot():
             if PAPER_POSICION_ACTIVA is not None:
                 cierre = paper_revisar_sl_tp(df)
 
-   if cierre:
-    # ===============================
-    # CLASIFICACIÓN PROFESIONAL (WIN / BE / LOSS)
-    # Compatible con paper_check_cierre(df)
-    # ===============================
-    pnl = cierre.get('pnl', 0)
+                if cierre:
+                    mensaje_cierre = (
+                        f"📌 CIERRE PAPER {cierre['decision']} ({cierre['motivo']})\n"
+                            f"💰 PnL: {cierre['pnl']:.4f} USD\n"
+                            f"💵 Balance: {cierre['balance']:.2f} USD"
+                        )
+                        telegram_mensaje(mensaje_cierre)
 
-    if pnl > 0:
-        etiqueta = "🟢 WIN"
-    elif pnl < 0:
-        etiqueta = "🔴 LOSS"
-    else:
-        etiqueta = "🟡 BE"
+            # ====== PRO EXIT GRAPHIC SYSTEM ======
+            try:
+                import matplotlib.pyplot as plt
+            
+                fig_salida = generar_grafico_entrada(
+                    df=df,
+                    decision=cierre['decision'],
+                    soporte=soporte,
+                    resistencia=resistencia,
+                    slope=slope,
+                    intercept=intercept,
+                    razones=[
+                        f"CIERRE POR {cierre['motivo']}",
+                        f"PNL: {cierre['pnl']:.4f} USD"
+                    ]
+                )
 
-    mensaje_cierre = (
-        f"📌 CIERRE PAPER {cierre['decision']} ({cierre['motivo']})\n"
-        f"{etiqueta} RESULTADO\n"
-        f"💰 PnL: {pnl:.4f} USD\n"
-        f"💵 Balance: {cierre['balance']:.2f} USD"
-    )
+                if fig_salida:
+                    ax = fig_salida.axes[0]
 
-    # Enviar mensaje de cierre (CORRECTA INDENTACIÓN)
-    telegram_mensaje(mensaje_cierre)
+                    # Mark entry, SL, TP, and exit
+                    if 'entrada' in cierre:
+                        ax.axhline(cierre['entrada'], linestyle='--')
+                    if 'sl' in cierre:
+                        ax.axhline(cierre['sl'], linestyle='--')
+                    if 'tp' in cierre:
+                        ax.axhline(cierre['tp'], linestyle='--')
 
-    # ===============================
-    # GRÁFICO PROFESIONAL DE SALIDA
-    # (Mismo sistema que tu entrada)
-    # ===============================
-    fig_salida = generar_grafico_entrada(
-        df=df,
-        decision=cierre['decision'],
-        soporte=soporte,
-        resistencia=resistencia,
-        slope=slope,
-        intercept=intercept,
-        razones=[
-            f"Cierre por {cierre['motivo']}",
-            f"Resultado: {etiqueta}",
-            f"PnL: {pnl:.4f} USD"
-        ]
-    )
+                    ax.axhline(df['Close'].iloc[-1], linestyle='-')
 
-    if fig_salida:
-        ax = fig_salida.axes[0]
-
-        # IMPORTANTE: tu bot usa 'close' en minúscula
-        precio_salida = df['close'].iloc[-1]
-        ax.axhline(precio_salida, linestyle='-', linewidth=2)
-
-        telegram_grafico(fig_salida)
-
-        import matplotlib.pyplot as plt
-        plt.close(fig_salida)
+                telegram_grafico(fig_salida)
+                plt.close(fig_salida)
 
         except Exception as e:
             print(f"Error gráfico cierre PRO: {e}")
