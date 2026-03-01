@@ -1271,6 +1271,43 @@ def run_bot():
                     )
                     telegram_mensaje(mensaje_cierre)
 
+        # ====== PRO EXIT GRAPHIC SYSTEM ======
+        try:
+            import matplotlib.pyplot as plt
+            
+            fig_salida = generar_grafico_entrada(
+                df=df,
+                decision=cierre['decision'],
+                soporte=soporte,
+                resistencia=resistencia,
+                slope=slope,
+                intercept=intercept,
+                razones=[
+                    f"CIERRE POR {cierre['motivo']}",
+                    f"PNL: {cierre['pnl']:.4f} USD"
+                ]
+            )
+
+            if fig_salida:
+                ax = fig_salida.axes[0]
+
+                # Mark entry, SL, TP, and exit
+                if 'entrada' in cierre:
+                    ax.axhline(cierre['entrada'], linestyle='--')
+                if 'sl' in cierre:
+                    ax.axhline(cierre['sl'], linestyle='--')
+                if 'tp' in cierre:
+                    ax.axhline(cierre['tp'], linestyle='--')
+
+                ax.axhline(df['Close'].iloc[-1], linestyle='-')
+
+                telegram_grafico(fig_salida)
+                plt.close(fig_salida)
+
+        except Exception as e:
+            print(f"Error gráfico cierre PRO: {e}")
+
+
             time.sleep(SLEEP_SECONDS)
 
         except Exception as e:
