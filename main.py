@@ -1263,7 +1263,7 @@ def run_bot():
             if PAPER_POSICION_ACTIVA is not None:
                 cierre = paper_revisar_sl_tp(df)
 
-                if cierre:
+    if cierre:
     # ===============================
     # CLASIFICACIÓN PROFESIONAL (C)
     # WIN / BE / LOSS automático
