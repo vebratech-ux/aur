@@ -1264,46 +1264,49 @@ def run_bot():
                 cierre = paper_revisar_sl_tp(df)
 
                 if cierre:
-                    mensaje_cierre = (
-                        f"📌 CIERRE PAPER {cierre['decision']} ({cierre['motivo']})\n"
-                        f"💰 PnL: {cierre['pnl']:.4f} USD\n"
-                        f"💵 Balance: {cierre['balance']:.2f} USD"
-                    )
-                    telegram_mensaje(mensaje_cierre)
+    mensaje_cierre = (
+        f"📌 CIERRE PAPER {cierre['decision']} ({cierre['motivo']})\n"
+        f"💰 PnL: {cierre['pnl']:.4f} USD\n"
+        f"💵 Balance: {cierre['balance']:.2f} USD"
+    )
 
-        # ====== PRO EXIT GRAPHIC SYSTEM ======
-        try:
-            import matplotlib.pyplot as plt
-            
-            fig_salida = generar_grafico_entrada(
-                df=df,
-                decision=cierre['decision'],
-                soporte=soporte,
-                resistencia=resistencia,
-                slope=slope,
-                intercept=intercept,
-                razones=[
-                    f"CIERRE POR {cierre['motivo']}",
-                    f"PNL: {cierre['pnl']:.4f} USD"
-                ]
-            )
+    # Mensaje de cierre (texto)
+    telegram_mensaje(mensaje_cierre)
 
-            if fig_salida:
-                ax = fig_salida.axes[0]
+    # ====== GRÁFICO PROFESIONAL DE CIERRE (SEGURO) ======
+    fig_salida = generar_grafico_entrada(
+        df=df,
+        decision=cierre['decision'],
+        soporte=soporte,
+        resistencia=resistencia,
+        slope=slope,
+        intercept=intercept,
+        razones=[
+            f"Cierre por {cierre['motivo']}",
+            f"PnL: {cierre['pnl']:.4f} USD"
+        ]
+    )
 
-                # Mark entry, SL, TP, and exit
-                if 'entrada' in cierre:
-                    ax.axhline(cierre['entrada'], linestyle='--')
-                if 'sl' in cierre:
-                    ax.axhline(cierre['sl'], linestyle='--')
-                if 'tp' in cierre:
-                    ax.axhline(cierre['tp'], linestyle='--')
+    if fig_salida:
+        ax = fig_salida.axes[0]
 
-                ax.axhline(df['Close'].iloc[-1], linestyle='-')
+        # Precio actual (salida)
+        precio_salida = df['Close'].iloc[-1]
+        ax.axhline(precio_salida, linestyle='-', linewidth=2)
 
-                telegram_grafico(fig_salida)
-                plt.close(fig_salida)
+        # Marcas institucionales (si existen)
+        if 'entrada' in cierre:
+            ax.axhline(cierre['entrada'], linestyle='--', linewidth=1)
+        if 'sl' in cierre:
+            ax.axhline(cierre['sl'], linestyle='--', linewidth=1)
+        if 'tp' in cierre:
+            ax.axhline(cierre['tp'], linestyle='--', linewidth=1)
 
+        telegram_grafico(fig_salida)
+
+        import matplotlib.pyplot as plt
+        plt.close(fig_salida)
+        
         except Exception as e:
             print(f"Error gráfico cierre PRO: {e}")
 
