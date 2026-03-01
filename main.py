@@ -1257,7 +1257,7 @@ def run_bot():
                     telegram_grafico(fig)
                     plt.close(fig)
 
-            # ======================================================
+           # ======================================================
             # GESTIÓN DE POSICIÓN ABIERTA
             # ======================================================
             if PAPER_POSICION_ACTIVA is not None:
@@ -1266,48 +1266,39 @@ def run_bot():
                 if cierre:
                     mensaje_cierre = (
                         f"📌 CIERRE PAPER {cierre['decision']} ({cierre['motivo']})\n"
-                            f"💰 PnL: {cierre['pnl']:.4f} USD\n"
-                            f"💵 Balance: {cierre['balance']:.2f} USD"
+                        f"💰 PnL: {cierre['pnl']:.4f} USD\n"
+                        f"💵 Balance: {cierre['balance']:.2f} USD"
+                    )
+                    telegram_mensaje(mensaje_cierre)
+
+                    # ====== PRO EXIT GRAPHIC SYSTEM ======
+                    try:
+                        fig_salida = generar_grafico_entrada(
+                            df=df,
+                            decision=cierre['decision'],
+                            soporte=soporte,
+                            resistencia=resistencia,
+                            slope=slope,
+                            intercept=intercept,
+                            razones=[
+                                f"CIERRE POR {cierre['motivo']}",
+                                f"PNL: {cierre['pnl']:.4f} USD"
+                            ]
                         )
-                        telegram_mensaje(mensaje_cierre)
 
-            # ====== PRO EXIT GRAPHIC SYSTEM ======
-            try:
-                import matplotlib.pyplot as plt
-            
-                fig_salida = generar_grafico_entrada(
-                    df=df,
-                    decision=cierre['decision'],
-                    soporte=soporte,
-                    resistencia=resistencia,
-                    slope=slope,
-                    intercept=intercept,
-                    razones=[
-                        f"CIERRE POR {cierre['motivo']}",
-                        f"PNL: {cierre['pnl']:.4f} USD"
-                    ]
-                )
+                        if fig_salida:
+                            ax = fig_salida.axes[0]
+                            # Marcar niveles de la operación cerrada
+                            ax.axhline(cierre['entrada'], color='white', linestyle='--', alpha=0.5, label='Entrada Original')
+                            ax.axhline(cierre['salida'], color='yellow', linestyle='-', linewidth=2, label='Precio Salida')
+                            
+                            telegram_grafico(fig_salida)
+                            plt.close(fig_salida)
 
-                if fig_salida:
-                    ax = fig_salida.axes[0]
+                    except Exception as e_grafico:
+                        print(f"Error gráfico cierre PRO: {e_grafico}")
 
-                    # Mark entry, SL, TP, and exit
-                    if 'entrada' in cierre:
-                        ax.axhline(cierre['entrada'], linestyle='--')
-                    if 'sl' in cierre:
-                        ax.axhline(cierre['sl'], linestyle='--')
-                    if 'tp' in cierre:
-                        ax.axhline(cierre['tp'], linestyle='--')
-
-                    ax.axhline(df['Close'].iloc[-1], linestyle='-')
-
-                telegram_grafico(fig_salida)
-                plt.close(fig_salida)
-
-        except Exception as e:
-            print(f"Error gráfico cierre PRO: {e}")
-
-
+            # Pausa del ciclo principal
             time.sleep(SLEEP_SECONDS)
 
         except Exception as e:
@@ -1321,12 +1312,7 @@ def run_bot():
 
 if __name__ == '__main__':
     run_bot()
-
-
-
-
-
-
+    
 # ======================================================
 # NUEVA GESTIÓN DINÁMICA DE TRADE (ATR TRAILING SYSTEM)
 # ======================================================
