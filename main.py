@@ -31,6 +31,14 @@ MOSTRAR_ATR = False
 # ======================================================
 # ======================================================
 # CONFIGURACIÓN GENERAL
+# ===============================
+# MARGEN PROXIMIDAD NIVELES
+# ===============================
+MARGEN_NIVEL = 80  # puntos de precio BTC
+
+def cerca_de_nivel(precio, nivel, margen=MARGEN_NIVEL):
+    return abs(precio - nivel) <= margen
+
 # ======================================================
 
 SYMBOL = "BTCUSDT"
@@ -286,11 +294,11 @@ def motor_v90(df):
 
     razones = []
 
-    if tendencia == '📈 ALCISTA' and abs(precio - soporte) < atr:
+    if tendencia == '📈 ALCISTA' and cerca_de_nivel(precio, soporte) < atr:
         razones.append('Confluencia: soporte + tendencia alcista')
         return 'Buy', soporte, resistencia, razones
 
-    if tendencia == '📉 BAJISTA' and abs(precio - resistencia) < atr:
+    if tendencia == '📉 BAJISTA' and cerca_de_nivel(precio, resistencia) < atr:
         razones.append('Confluencia: resistencia + tendencia bajista')
         return 'Sell', soporte, resistencia, razones
 
@@ -1161,10 +1169,10 @@ def run_bot():
             # =========================
             # ZONA (Soporte/Resistencia)
             # =========================
-            if decision == "Buy" and abs(precio_actual - soporte) < atr_actual:
+            if decision == "Buy" and cerca_de_nivel(precio_actual, soporte) < atr_actual:
                 zona_valida = True
 
-            if decision == "Sell" and abs(precio_actual - resistencia) < atr_actual:
+            if decision == "Sell" and cerca_de_nivel(precio_actual, resistencia) < atr_actual:
                 zona_valida = True
 
             # =========================
