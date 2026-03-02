@@ -268,14 +268,14 @@ def detectar_soportes_resistencias(df):
 # TENDENCIA
 # ======================================================
 
-def detectar_tendencia(df, ventana=240):
+def detectar_tendencia(df, ventana=120):
     y = df['close'].values[-ventana:]
     x = np.arange(len(y))
     slope, intercept, r, _, _ = linregress(x, y)
 
-    if slope > 0.02:
+    if slope > 0.01:
         direccion = '📈 ALCISTA'
-    elif slope < -0.02:
+    elif slope < -0.01:
         direccion = '📉 BAJISTA'
     else:
         direccion = '➡️ LATERAL'
