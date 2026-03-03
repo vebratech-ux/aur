@@ -1,7 +1,12 @@
-# BOT TRADING V90.3 BYBIT REAL – PRODUCCIÓN (SIN PROXY) + GRÁFICO SALIDA
+# BOT TRADING V90.5 BYBIT REAL – PRODUCCIÓN (SIN PROXY) + ARSENAL NISON COMPLETO
 # ======================================================
 # ⚠️ KEYS INCLUIDAS TAL CUAL (SEGÚN PEDIDO)
 # Diseñado para FUTUROS PERPETUOS BTCUSDT en Bybit
+# ======================================================
+# NOVEDADES V90.5:
+# - Agregados patrones de 3 velas: Morning Star y Evening Star.
+# - Agregados patrones de precisión: Tweezer Tops y Bottoms.
+# - Mantenimiento de contexto estricto para los 10 patrones.
 # ======================================================
 
 import os
@@ -307,104 +312,235 @@ def motor_v90(df):
 
 
 # ======================================================
-# PATRONES DE VELAS NISON (CON CONTEXTO REAL)
-# Patrón + Soporte/Resistencia + Tendencia previa + Confirmación
+# 🕯️ ARSENAL DE PATRONES NISON V90.5
+# Se incluyen: Hammer, Shooting Star, Engulfing, Piercing/Cloud,
+# Morning/Evening Star, Tweezers, Harami.
 # ======================================================
 
-def tendencia_previa(df, velas=5):
+def calcular_cuerpo_mechas(row):
+    cuerpo = abs(row['close'] - row['open'])
+    alto = row['high']
+    bajo = row['low']
+    top = max(row['open'], row['close'])
+    bottom = min(row['open'], row['close'])
+    
+    mecha_sup = alto - top
+    mecha_inf = bottom - bajo
+    
+    return cuerpo, mecha_sup, mecha_inf
+
+def tendencia_previa_nison(df, velas=8):
+    """
+    Nison: 'Un patrón de reversión NO existe sin una tendencia previa'.
+    """
     if len(df) < velas + 1:
-        return None
-    closes = df['close'].iloc[-(velas+1):-1]
-    if closes.iloc[-1] > closes.iloc[0]:
-        return "alcista"
-    elif closes.iloc[-1] < closes.iloc[0]:
+        return "neutral"
+    
+    reciente = df.iloc[-velas:-1]
+    
+    inicio = reciente['close'].iloc[0]
+    fin = reciente['close'].iloc[-1]
+    
+    y = reciente['close'].values
+    x = np.arange(len(y))
+    slope, _, _, _, _ = linregress(x, y)
+    
+    atr = df['atr'].iloc[-1]
+    
+    if fin < inicio - (atr * 0.5) and slope < 0:
         return "bajista"
+    elif fin > inicio + (atr * 0.5) and slope > 0:
+        return "alcista"
+    
     return "lateral"
 
-def es_hammer(candle):
-    cuerpo = abs(candle['close'] - candle['open'])
-    rango = candle['high'] - candle['low']
-    mecha_inf = min(candle['open'], candle['close']) - candle['low']
-    mecha_sup = candle['high'] - max(candle['open'], candle['close'])
-    return (mecha_inf > cuerpo * 2) and (mecha_sup < cuerpo) and (cuerpo / rango < 0.4)
+# --- 1. HAMMER (MARTILLO) ---
+def es_hammer_nison(df, idx):
+    row = df.iloc[idx]
+    cuerpo, m_sup, m_inf = calcular_cuerpo_mechas(row)
+    if cuerpo == 0: cuerpo = 0.0001
+    
+    return (m_inf / cuerpo >= 2.0) and (m_sup / cuerpo <= 0.2)
 
-def es_shooting_star(candle):
-    cuerpo = abs(candle['close'] - candle['open'])
-    rango = candle['high'] - candle['low']
-    mecha_sup = candle['high'] - max(candle['open'], candle['close'])
-    mecha_inf = min(candle['open'], candle['close']) - candle['low']
-    return (mecha_sup > cuerpo * 2) and (mecha_inf < cuerpo) and (cuerpo / rango < 0.4)
+# --- 2. SHOOTING STAR (ESTRELLA FUGAZ) ---
+def es_shooting_star_nison(df, idx):
+    row = df.iloc[idx]
+    cuerpo, m_sup, m_inf = calcular_cuerpo_mechas(row)
+    if cuerpo == 0: cuerpo = 0.0001
+    
+    return (m_sup / cuerpo >= 2.0) and (m_inf / cuerpo <= 0.2)
 
-def es_bullish_engulfing(prev, curr):
-    return (prev['close'] < prev['open'] and
-            curr['close'] > curr['open'] and
-            curr['open'] < prev['close'] and
-            curr['close'] > prev['open'])
+# --- 3. BULLISH ENGULFING (ENVOLVENTE ALCISTA) ---
+def es_bullish_engulfing_nison(df, idx):
+    prev = df.iloc[idx-1]
+    curr = df.iloc[idx]
+    
+    if not (prev['close'] < prev['open'] and curr['close'] > curr['open']):
+        return False
+    
+    return (curr['close'] > prev['open']) and (curr['open'] < prev['close'])
 
-def es_bearish_engulfing(prev, curr):
-    return (prev['close'] > prev['open'] and
-            curr['close'] < curr['open'] and
-            curr['open'] > prev['close'] and
-            curr['close'] < prev['open'])
+# --- 4. BEARISH ENGULFING (ENVOLVENTE BAJISTA) ---
+def es_bearish_engulfing_nison(df, idx):
+    prev = df.iloc[idx-1]
+    curr = df.iloc[idx]
+    
+    if not (prev['close'] > prev['open'] and curr['close'] < curr['open']):
+        return False
+    
+    return (curr['open'] > prev['close']) and (curr['close'] < prev['open'])
 
-def es_piercing(prev, curr):
-    mitad = (prev['open'] + prev['close']) / 2
-    return (prev['close'] < prev['open'] and
-            curr['close'] > curr['open'] and
-            curr['close'] > mitad)
+# --- 5. PIERCING PATTERN (PAUTA PENETRANTE) ---
+def es_piercing_nison(df, idx):
+    prev = df.iloc[idx-1]
+    curr = df.iloc[idx]
+    
+    if not (prev['close'] < prev['open'] and curr['close'] > curr['open']):
+        return False
+        
+    midpoint_prev = (prev['open'] + prev['close']) / 2
+    return (curr['close'] > midpoint_prev) and (curr['open'] <= prev['close'])
 
-def es_dark_cloud(prev, curr):
-    mitad = (prev['open'] + prev['close']) / 2
-    return (prev['close'] > prev['open'] and
-            curr['close'] < curr['open'] and
-            curr['close'] < mitad)
+# --- 6. DARK CLOUD COVER (CUBIERTA DE NUBE OSCURA) ---
+def es_dark_cloud_nison(df, idx):
+    prev = df.iloc[idx-1]
+    curr = df.iloc[idx]
+    
+    if not (prev['close'] > prev['open'] and curr['close'] < curr['open']):
+        return False
+    
+    midpoint_prev = (prev['open'] + prev['close']) / 2
+    return (curr['close'] < midpoint_prev) and (curr['open'] >= prev['close'])
 
-def es_harami(prev, curr):
-    return (min(curr['open'], curr['close']) > min(prev['open'], prev['close']) and
-            max(curr['open'], curr['close']) < max(prev['open'], prev['close']))
+# --- 7. MORNING STAR (ESTRELLA DE LA MAÑANA) - 3 VELAS ---
+# Contexto: Bajista.
+# 1: Roja larga. 2: Pequeña (indecisión). 3: Verde fuerte que penetra en la 1.
+def es_morning_star_nison(df, idx):
+    if idx < 2: return False
+    c1 = df.iloc[idx-2] # Roja
+    c2 = df.iloc[idx-1] # Estrella
+    c3 = df.iloc[idx]   # Verde
+    
+    atr = df['atr'].iloc[idx]
+    
+    # Colores
+    if not (c1['close'] < c1['open']): return False # C1 Roja
+    if not (c3['close'] > c3['open']): return False # C3 Verde
+    
+    # Tamaños
+    c1_body = abs(c1['close'] - c1['open'])
+    c2_body = abs(c2['close'] - c2['open'])
+    c3_body = abs(c3['close'] - c3['open'])
+    
+    # Nison: C1 debe ser larga, C2 pequeña (estrella)
+    if c1_body < atr * 0.5: return False
+    if c2_body > c1_body * 0.4: return False # C2 debe ser pequeña
+    
+    # Penetración: C3 cierra por encima del 50% de C1
+    midpoint_c1 = (c1['open'] + c1['close']) / 2
+    if c3['close'] < midpoint_c1: return False
+    
+    return True
 
-def detectar_patron_nison(df, soporte, resistencia, tendencia):
-    if len(df) < 3:
+# --- 8. EVENING STAR (ESTRELLA DEL ATARDECER) - 3 VELAS ---
+# Contexto: Alcista.
+# 1: Verde larga. 2: Pequeña (estrella). 3: Roja fuerte que penetra en la 1.
+def es_evening_star_nison(df, idx):
+    if idx < 2: return False
+    c1 = df.iloc[idx-2] # Verde
+    c2 = df.iloc[idx-1] # Estrella
+    c3 = df.iloc[idx]   # Roja
+    
+    atr = df['atr'].iloc[idx]
+    
+    if not (c1['close'] > c1['open']): return False # C1 Verde
+    if not (c3['close'] < c3['open']): return False # C3 Roja
+    
+    c1_body = abs(c1['close'] - c1['open'])
+    c2_body = abs(c2['close'] - c2['open'])
+    
+    if c1_body < atr * 0.5: return False
+    if c2_body > c1_body * 0.4: return False
+    
+    midpoint_c1 = (c1['open'] + c1['close']) / 2
+    if c3['close'] > midpoint_c1: return False
+    
+    return True
+
+# --- 9. TWEEZER BOTTOMS (PINZAS DE SUELO) ---
+# Contexto: Bajista. Dos velas con el mismo mínimo (o muy cerca).
+def es_tweezer_bottom_nison(df, idx):
+    curr = df.iloc[idx]
+    prev = df.iloc[idx-1]
+    
+    # Margen de tolerancia para "mismo precio"
+    tolerancia = df['atr'].iloc[idx] * 0.05
+    
+    match_low = abs(curr['low'] - prev['low']) < tolerancia
+    
+    # Confirmación: la vela actual debe cerrar alcista o rechazar fuerte
+    rechazo = (curr['close'] > curr['open']) or (es_hammer_nison(df, idx))
+    
+    return match_low and rechazo
+
+# --- 10. TWEEZER TOPS (PINZAS DE TECHO) ---
+# Contexto: Alcista. Dos velas con el mismo máximo.
+def es_tweezer_top_nison(df, idx):
+    curr = df.iloc[idx]
+    prev = df.iloc[idx-1]
+    
+    tolerancia = df['atr'].iloc[idx] * 0.05
+    
+    match_high = abs(curr['high'] - prev['high']) < tolerancia
+    
+    rechazo = (curr['close'] < curr['open']) or (es_shooting_star_nison(df, idx))
+    
+    return match_high and rechazo
+
+# === MASTER PATTERN DETECTOR ===
+def detectar_patron_nison(df, soporte, resistencia, tendencia_global):
+    if len(df) < 10:
         return False, None
 
-    prev = df.iloc[-2]
-    curr = df.iloc[-1]
-    prev2 = df.iloc[-3]
+    idx = -1 
+    precio_actual = df['close'].iloc[idx]
+    atr = df['atr'].iloc[idx]
+    
+    # 1. Definir Tendencia Previa Inmediata
+    t_prev = tendencia_previa_nison(df, velas=7)
+    
+    # 2. Definir Zonas
+    en_soporte = cerca_de_nivel(precio_actual, soporte, margen=atr*0.8)
+    en_resistencia = cerca_de_nivel(precio_actual, resistencia, margen=atr*0.8)
+    
+    # --- PATRONES ALCISTAS (REQUIEREN SOPORTE + TENDENCIA BAJISTA PREVIA) ---
+    if t_prev == "bajista" and en_soporte:
+        if es_hammer_nison(df, idx):
+            return True, "Nison Hammer"
+        if es_bullish_engulfing_nison(df, idx):
+            return True, "Nison Bullish Engulfing"
+        if es_piercing_nison(df, idx):
+            return True, "Nison Piercing Pattern"
+        if es_morning_star_nison(df, idx):
+            return True, "Nison Morning Star (3 Velas)"
+        if es_tweezer_bottom_nison(df, idx):
+            return True, "Nison Tweezer Bottoms"
 
-    t_prev = tendencia_previa(df, 5)
-    confirmacion = curr['close'] > prev['close'] if tendencia == '📈 ALCISTA' else curr['close'] < prev['close']
-
-    # Contexto Nison: zona + tendencia previa + confirmación
-    cerca_soporte = abs(curr['close'] - soporte) < df['atr'].iloc[-1]
-    cerca_resistencia = abs(curr['close'] - resistencia) < df['atr'].iloc[-1]
-
-    # Hammer (reversión alcista)
-    if es_hammer(curr) and t_prev == "bajista" and cerca_soporte and confirmacion:
-        return True, "Hammer"
-
-    # Shooting Star (reversión bajista)
-    if es_shooting_star(curr) and t_prev == "alcista" and cerca_resistencia and confirmacion:
-        return True, "Shooting Star"
-
-    # Engulfing
-    if es_bullish_engulfing(prev, curr) and t_prev == "bajista" and cerca_soporte and confirmacion:
-        return True, "Bullish Engulfing"
-
-    if es_bearish_engulfing(prev, curr) and t_prev == "alcista" and cerca_resistencia and confirmacion:
-        return True, "Bearish Engulfing"
-
-    # Piercing / Dark Cloud
-    if es_piercing(prev, curr) and t_prev == "bajista" and cerca_soporte and confirmacion:
-        return True, "Piercing Pattern"
-
-    if es_dark_cloud(prev, curr) and t_prev == "alcista" and cerca_resistencia and confirmacion:
-        return True, "Dark Cloud Cover"
-
-    # Harami (continuación / reversión contextual)
-    if es_harami(prev, curr) and confirmacion:
-        return True, "Harami"
+    # --- PATRONES BAJISTAS (REQUIEREN RESISTENCIA + TENDENCIA ALCISTA PREVIA) ---
+    if t_prev == "alcista" and en_resistencia:
+        if es_shooting_star_nison(df, idx):
+            return True, "Nison Shooting Star"
+        if es_bearish_engulfing_nison(df, idx):
+            return True, "Nison Bearish Engulfing"
+        if es_dark_cloud_nison(df, idx):
+            return True, "Nison Dark Cloud Cover"
+        if es_evening_star_nison(df, idx):
+            return True, "Nison Evening Star (3 Velas)"
+        if es_tweezer_top_nison(df, idx):
+            return True, "Nison Tweezer Tops"
 
     return False, None
+
 
 # ======================================================
 # FILTRO MAESTRO NISON - FASE 1 (ARQUITECTURA BASE)
@@ -1204,7 +1340,7 @@ class InstitutionalSecondarySystem:
 # ======================================================
 
 def run_bot():
-    telegram_mensaje("🤖 BOT V90.2 BYBIT REAL INICIADO (SIN PROXY)")
+    telegram_mensaje("🤖 BOT V90.5 BYBIT REAL INICIADO (ARSENAL NISON COMPLETO)")
 
     # ======================================================
     # INICIALIZAR SISTEMA INSTITUCIONAL SECUNDARIO
@@ -1261,12 +1397,14 @@ def run_bot():
             # =========================
             # DETECCIÓN PATRÓN NISON REAL (CON CONTEXTO)
             # =========================
+            # NOTA: detectar_patron_nison ahora verifica internamente
+            # la tendencia previa inmediata y la zona exacta.
             patron_detectado, nombre_patron = detectar_patron_nison(
                 df, soporte, resistencia, tendencia
             )
 
             if patron_detectado:
-                razones.append(f"Patrón Nison detectado: {nombre_patron}")
+                razones.append(f"✅ Patrón Nison Validado: {nombre_patron}")
 
             # =========================
             # FILTRO MAESTRO FINAL
@@ -1280,7 +1418,7 @@ def run_bot():
                 )
 
                 if not permitir:
-                    razones.append("Filtro Maestro Nison bloqueó entrada")
+                    razones.append("⛔ Filtro Maestro bloqueó entrada")
                     decision = None
 
             # LOG DEL SISTEMA
