@@ -1,4 +1,4 @@
-# BOT TRADING V90.2 BYBIT REAL – PRODUCCIÓN (SIN PROXY)
+# BOT TRADING V90.3 BYBIT REAL – PRODUCCIÓN (SIN PROXY) + GRÁFICO SALIDA
 # ======================================================
 # ⚠️ KEYS INCLUIDAS TAL CUAL (SEGÚN PEDIDO)
 # Diseñado para FUTUROS PERPETUOS BTCUSDT en Bybit
@@ -722,6 +722,79 @@ def generar_grafico_entrada(df, decision, soporte, resistencia, slope, intercept
     except Exception as e:
         print(f"🚨 ERROR GRÁFICO: {e}")
         return None
+
+# ======================================================
+# GRÁFICO DE SALIDA (NUEVO)
+# ======================================================
+def generar_grafico_salida(df, trade_data):
+    """
+    Genera un gráfico mostrando el cierre del trade,
+    la línea de entrada y el punto de salida.
+    """
+    try:
+        decision = trade_data['decision']  # Buy o Sell original
+        entrada_price = trade_data['entrada']
+        salida_price = trade_data['salida']
+        pnl = trade_data['pnl']
+        motivo = trade_data['motivo']
+        balance = trade_data['balance']
+        
+        # Tomamos las últimas 120 velas para contexto (igual que entrada)
+        df_plot = df.copy().tail(120)
+        
+        if df_plot.empty:
+            return None
+
+        fig, ax = plt.subplots(figsize=(14, 7))
+
+        # 1. DIBUJAR VELAS JAPONESAS
+        for i, (idx, row) in enumerate(df_plot.iterrows()):
+            o, h, l, c = row['open'], row['high'], row['low'], row['close']
+            color = 'green' if c >= o else 'red'
+            
+            # Mecha
+            ax.plot([i, i], [l, h], color='black', linewidth=1)
+            # Cuerpo
+            ax.plot([i, i], [o, c], color=color, linewidth=6)
+
+        # 2. LÍNEA DE PRECIO DE ENTRADA (Referencia)
+        ax.axhline(entrada_price, color='blue', linestyle='--', linewidth=1.5, label=f'Entrada: {entrada_price:.2f}')
+        
+        # 3. LÍNEA DE PRECIO DE SALIDA
+        ax.axhline(salida_price, color='orange', linestyle='--', linewidth=1.5, label=f'Salida: {salida_price:.2f}')
+
+        # 4. MARCAR EL PUNTO DE SALIDA (Última vela)
+        indice_salida = len(df_plot) - 1
+        
+        # Color del marcador según si ganamos o perdimos
+        color_salida = 'lime' if pnl > 0 else 'red'
+        marker_salida = '^' if pnl > 0 else 'v' 
+        
+        ax.scatter([indice_salida], [salida_price], s=200, c=color_salida, marker=marker_salida, edgecolors='black', zorder=5, label=f'Cierre ({motivo})')
+
+        # 5. CUADRO DE INFORMACIÓN
+        texto_info = (
+            f"CIERRE {decision}\n"
+            f"Motivo: {motivo}\n"
+            f"PnL: {pnl:.4f} USD\n"
+            f"Balance: {balance:.2f} USD"
+        )
+        
+        props = dict(boxstyle='round', facecolor='white', alpha=0.9)
+        ax.text(0.02, 0.95, texto_info, transform=ax.transAxes, fontsize=12,
+                verticalalignment='top', bbox=props)
+
+        # Decoración
+        ax.set_title(f"DETALLE DE CIERRE - {decision} - {'GANADA 🤑' if pnl > 0 else 'PERDIDA 💀'}")
+        ax.grid(True, alpha=0.3)
+        ax.legend(loc='lower left')
+
+        return fig
+
+    except Exception as e:
+        print(f"🚨 ERROR GRÁFICO SALIDA: {e}")
+        return None
+
 # ======================================================
 # MOTOR PAPER (EJECUCIÓN SIMULADA)
 # ======================================================
@@ -892,14 +965,6 @@ def paper_revisar_sl_tp(df):
         }
 
     return None
-# ======================================================
-# LOOP PRINCIPAL
-# ======================================================
-
-
-# ======================================================
-
-
 
 # ======================================================
 # FUNCIÓN CONTROL DINÁMICO DE RIESGO
@@ -1135,7 +1200,7 @@ class InstitutionalSecondarySystem:
 
 
 # ======================================================
-# FIN DEL MÓDULO INSTITUCIONAL SECUNDARIO
+# LOOP PRINCIPAL
 # ======================================================
 
 def run_bot():
@@ -1272,12 +1337,19 @@ def run_bot():
                 cierre = paper_revisar_sl_tp(df)
 
                 if cierre:
+                    # Mensaje texto
                     mensaje_cierre = (
                         f"📌 CIERRE PAPER {cierre['decision']} ({cierre['motivo']})\n"
                         f"💰 PnL: {cierre['pnl']:.4f} USD\n"
                         f"💵 Balance: {cierre['balance']:.2f} USD"
                     )
                     telegram_mensaje(mensaje_cierre)
+                    
+                    # Grafico Salida (NUEVO)
+                    fig_salida = generar_grafico_salida(df, cierre)
+                    if fig_salida:
+                        telegram_grafico(fig_salida)
+                        plt.close(fig_salida)
 
             time.sleep(SLEEP_SECONDS)
 
@@ -1292,10 +1364,6 @@ def run_bot():
 
 if __name__ == '__main__':
     run_bot()
-
-
-
-
 
 
 # ======================================================
