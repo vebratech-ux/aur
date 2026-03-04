@@ -1348,6 +1348,7 @@ def run_bot():
     sistema_institucional = InstitutionalSecondarySystem(telegram_mensaje)
 
     while True:
+        time.sleep(60)  # 🔒 Rate limit protection (1 ciclo por minuto)
         try:
             df = obtener_velas()
             df = calcular_indicadores(df)
